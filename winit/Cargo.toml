@@ -14,6 +14,7 @@ categories = ["gui"]
 debug = ["iced_native/debug"]
 system = ["sysinfo"]
 application = []
+multi_window = []
 
 [dependencies]
 window_clipboard = "0.2"
