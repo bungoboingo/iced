@@ -92,6 +92,7 @@ members = [
     "examples/tour",
     "examples/url_handler",
     "examples/websocket",
+    "examples/multi_window",
 ]
 
 [dependencies]
