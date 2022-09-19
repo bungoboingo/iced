@@ -470,6 +470,7 @@ async fn run_instance<A, E, C>(
                 state.update(&window, &window_event, &mut debug);
 
                 if let Some(event) = conversion::window_event(
+                    crate::window::Id::MAIN,
                     &window_event,
                     state.scale_factor(),
                     state.modifiers(),
@@ -614,7 +615,7 @@ pub fn run_command<A, E>(
                     clipboard.write(contents);
                 }
             },
-            command::Action::Window(action) => match action {
+            command::Action::Window(_id, action) => match action {
                 window::Action::Resize { width, height } => {
                     window.set_inner_size(winit::dpi::LogicalSize {
                         width,
