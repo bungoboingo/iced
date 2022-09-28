@@ -111,7 +111,7 @@ where
 
         #[allow(unsafe_code)]
         unsafe {
-            context.make_current().expect("Make OpenGL context current")
+            context.make_current(todo!()).expect("Make OpenGL context current")
         }
     };
 
@@ -338,7 +338,7 @@ async fn run_instance<A, E, C>(
                 unsafe {
                     if !context.is_current() {
                         context = context
-                            .make_current()
+                            .make_current(todo!())
                             .expect("Make OpenGL context current");
                     }
                 }
@@ -394,7 +394,7 @@ async fn run_instance<A, E, C>(
                     &debug.overlay(),
                 );
 
-                context.swap_buffers().expect("Swap buffers");
+                context.swap_buffers(todo!()).expect("Swap buffers");
 
                 debug.render_finished();
 
