@@ -11,7 +11,7 @@ use iced::executor;
 use iced::theme::{self, Theme};
 use iced::time;
 use iced::widget::canvas;
-use iced::widget::canvas::{Cursor, Path, Stroke};
+use iced::widget::canvas::{Cursor, LineDash, Path, Stroke};
 use iced::window;
 use iced::{
     Application, Color, Command, Element, Length, Point, Rectangle, Settings,
@@ -90,6 +90,7 @@ impl Application for SolarSystem {
 
 #[derive(Debug)]
 struct State {
+    meteor_cache: canvas::Cache,
     space_cache: canvas::Cache,
     system_cache: canvas::Cache,
     start: Instant,
@@ -109,6 +110,7 @@ impl State {
         let (width, height) = window::Settings::default().size;
 
         State {
+            meteor_cache: Default::default(),
             space_cache: Default::default(),
             system_cache: Default::default(),
             start: now,
@@ -120,6 +122,7 @@ impl State {
     pub fn update(&mut self, now: Instant) {
         self.now = now;
         self.system_cache.clear();
+        self.meteor_cache.clear();
     }
 
     fn generate_stars(width: u32, height: u32) -> Vec<(Point, f32)> {
@@ -226,6 +229,38 @@ impl<Message> canvas::Program<Message> for State {
             });
         });
 
-        vec![background, system]
+        let geometry = self.meteor_cache.draw(bounds.size(), |frame| {
+            let elapsed = self.now - self.start;
+            let rotation = (2.0 * PI / 60.0) * elapsed.as_secs() as f32
+                + (2.0 * PI / 60_000.0) * elapsed.subsec_millis() as f32;
+
+            let box_size: f32 = 100.0;
+            frame.translate(Vector::new(frame.center().x, frame.center().y));
+            frame.rotate(rotation);
+
+            let explain = Path::rectangle(Point::ORIGIN, bounds.size());
+            frame.stroke(&explain, Stroke {
+                color: Color::WHITE,
+                width: 2.0,
+                line_dash: LineDash {
+                    segments: &[4.0, 4.0,],
+                    offset: 0
+                },
+                .. Default::default()
+            });
+
+            let top_left = Point::ORIGIN;
+
+            frame.fill_rectangle(
+                top_left,
+                Size::new(box_size, box_size),
+                Color::from_rgb(1.0, 0.0, 0.0),
+            );
+
+            let circle = Path::circle(Point::new(100.0, 100.0), 50.0);
+            frame.fill(&circle, Color::from_rgb(0.0, 1.0, 0.0));
+        });
+
+        vec![background, system, geometry]
     }
 }
