@@ -8,6 +8,7 @@ use crate::widget::canvas::{Fill, Geometry, Path, Stroke, Text};
 use crate::Primitive;
 
 use lyon::tessellation;
+use crate::widget::canvas::path::Builder;
 
 /// The frame of a [`Canvas`].
 ///
@@ -127,22 +128,36 @@ impl Frame {
             FillVertex(color.into_linear()),
         );
 
-        let top_left =
-            self.transforms.current.raw.transform_point(
-                lyon::math::Point::new(top_left.x, top_left.y),
-            );
+        let top_left = self.transforms.current.raw.transform_point(
+            lyon::math::Point::new(top_left.x, top_left.y),
+        );
 
-        let size =
-            self.transforms.current.raw.transform_vector(
-                lyon::math::Vector::new(size.width, size.height),
-            );
+        let top_right = self.transforms.current.raw.transform_point(
+            lyon::math::Point::new(size.width, 0.0)
+        );
+
+        let bottom_right = self.transforms.current.raw.transform_point(
+            lyon::math::Point::new(size.width, size.height)
+        );
+
+        let bottom_left = self.transforms.current.raw.transform_point(
+            lyon::math::Point::new(0.0, size.height)
+        );
+
+        let mut path = Builder::new();
+        path.move_to(Point::new(top_left.x, top_left.y));
+        path.line_to(Point::new(top_right.x, top_right.y));
+        path.line_to(Point::new(bottom_right.x, bottom_right.y));
+        path.line_to(Point::new(bottom_left.x, bottom_left.y));
+        path.line_to(Point::new(top_left.x, top_left.y));
+        let path = path.build();
 
         let options =
             tessellation::FillOptions::default().with_fill_rule(rule.into());
 
         self.fill_tessellator
-            .tessellate_rectangle(
-                &lyon::math::Box2D::new(top_left, top_left + size),
+            .tessellate_path(
+                path.raw(),
                 &options,
                 &mut buffers,
             )
