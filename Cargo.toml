@@ -59,6 +59,7 @@ members = [
     "wgpu",
     "winit",
     "examples/arc",
+    "examples/bench",
     "examples/bezier_tool",
     "examples/clock",
     "examples/color_palette",

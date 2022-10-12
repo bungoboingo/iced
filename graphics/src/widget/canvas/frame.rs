@@ -353,6 +353,14 @@ impl Frame {
         self.transforms.current.is_identity = false;
     }
 
+    /// Applies a width scaling to the current transform of the [`Frame`].
+    #[inline]
+    pub fn scale_x(&mut self, scale: f32) {
+        self.transforms.current.raw =
+            self.transforms.current.raw.pre_scale(scale, 1.0);
+        self.transforms.current.is_identity = false;
+    }
+
     /// Produces the [`Geometry`] representing everything drawn on the [`Frame`].
     pub fn into_geometry(self) -> Geometry {
         Geometry::from_primitive(Primitive::Group {

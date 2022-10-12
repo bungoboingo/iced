@@ -1,5 +1,5 @@
 [package]
-name = "modern_art"
+name = "bench"
 version = "0.1.0"
 authors = ["Bingus <shankern@protonmail.com>"]
 edition = "2021"
@@ -7,4 +7,3 @@ publish = false
 
 [dependencies]
 iced = { path = "../..", features = ["canvas", "tokio", "debug", "glow"] }
-rand = "0.8.5"
