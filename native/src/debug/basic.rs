@@ -26,11 +26,22 @@ pub struct Debug {
     draw_start: time::Instant,
     draw_durations: TimeBuffer,
 
-    render_start: time::Instant,
-    render_durations: TimeBuffer,
+    render: RenderDebug,
 
     message_count: usize,
     last_messages: VecDeque<String>,
+}
+
+#[derive(Debug)]
+pub struct RenderDebug {
+    start: time::Instant,
+    durations: TimeBuffer,
+    layer_generation_start: time::Instant,
+    layer_generation_durations: TimeBuffer,
+    triangle_draw_start: time::Instant,
+    triangle_draw_durations: TimeBuffer,
+    swap_buffer_start: time::Instant,
+    swap_buffer_durations: TimeBuffer,
 }
 
 impl Debug {
@@ -58,8 +69,16 @@ impl Debug {
             draw_start: now,
             draw_durations: TimeBuffer::new(200),
 
-            render_start: now,
-            render_durations: TimeBuffer::new(50),
+            render: RenderDebug {
+                start: now,
+                durations: TimeBuffer::new(50),
+                layer_generation_start: now,
+                layer_generation_durations: TimeBuffer::new(50),
+                triangle_draw_start: now,
+                triangle_draw_durations: TimeBuffer::new(50),
+                swap_buffer_start: now,
+                swap_buffer_durations: TimeBuffer::new(50)
+            },
 
             message_count: 0,
             last_messages: VecDeque::new(),
@@ -123,14 +142,46 @@ impl Debug {
             .push(time::Instant::now() - self.draw_start);
     }
 
+    // render start
     pub fn render_started(&mut self) {
-        self.render_start = time::Instant::now();
+        self.render.start = time::Instant::now();
+    }
+
+    pub fn layer_generation_start(&mut self) {
+        self.render.layer_generation_start = time::Instant::now()
+    }
+
+    pub fn layer_generation_finished(&mut self) {
+        self.render.layer_generation_durations.push(
+            time::Instant::now() - self.render.layer_generation_start
+        )
+    }
+
+    pub fn triangle_draw_start(&mut self) {
+        self.render.triangle_draw_start = time::Instant::now();
+    }
+
+    pub fn triangle_draw_end(&mut self) {
+        self.render.triangle_draw_durations.push(
+            time::Instant::now() - self.render.triangle_draw_start
+        )
+    }
+
+    pub fn swap_buffer_start(&mut self) {
+        self.render.swap_buffer_start = time::Instant::now();
+    }
+
+    pub fn swap_buffer_end(&mut self) {
+        self.render.swap_buffer_durations.push(
+            time::Instant::now() - self.render.swap_buffer_start
+        )
     }
 
     pub fn render_finished(&mut self) {
-        self.render_durations
-            .push(time::Instant::now() - self.render_start);
+        self.render.durations
+            .push(time::Instant::now() - self.render.start);
     }
+    //render end
 
     pub fn log_message<Message: std::fmt::Debug>(&mut self, message: &Message) {
         self.last_messages.push_back(format!("{:?}", message));
@@ -171,7 +222,10 @@ impl Debug {
             "Primitive generation:",
             self.draw_durations.average(),
         ));
-        lines.push(key_value("Render:", self.render_durations.average()));
+        lines.push(key_value("Render:", self.render.durations.average()));
+        lines.push(key_value("Layer Generation:", self.render.layer_generation_durations.average()));
+        lines.push(key_value("Triangle Draw:", self.render.triangle_draw_durations.average()));
+        lines.push(key_value("Swap Buffer:", self.render.swap_buffer_durations.average()));
         lines.push(key_value("Message count:", self.message_count));
         lines.push(String::from("Last messages:"));
         lines.extend(self.last_messages.iter().map(|msg| {

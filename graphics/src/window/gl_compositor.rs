@@ -4,6 +4,7 @@ use crate::compositor::Information;
 use crate::{Color, Error, Size, Viewport};
 
 use core::ffi::c_void;
+use iced_native::Debug;
 
 /// A basic OpenGL compositor.
 ///
@@ -67,5 +68,6 @@ pub trait GLCompositor: Sized {
         viewport: &Viewport,
         background_color: Color,
         overlay: &[T],
+        debug: &mut Debug,
     );
 }

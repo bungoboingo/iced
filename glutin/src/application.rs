@@ -392,9 +392,12 @@ async fn run_instance<A, E, C>(
                     state.viewport(),
                     state.background_color(),
                     &debug.overlay(),
+                    &mut debug
                 );
 
+                debug.swap_buffer_start();
                 context.swap_buffers().expect("Swap buffers");
+                debug.swap_buffer_end();
 
                 debug.render_finished();
 

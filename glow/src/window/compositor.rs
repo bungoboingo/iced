@@ -5,6 +5,7 @@ use iced_graphics::{compositor, Antialiasing, Size};
 
 use core::ffi::c_void;
 use std::marker::PhantomData;
+use iced_native::Debug;
 
 /// A window graphics backend for iced powered by `glow`.
 #[allow(missing_debug_implementations)]
@@ -90,6 +91,7 @@ impl<Theme> iced_graphics::window::GLCompositor for Compositor<Theme> {
         viewport: &Viewport,
         color: Color,
         overlay: &[T],
+        debug: &mut Debug,
     ) {
         let gl = &self.gl;
 
@@ -101,7 +103,7 @@ impl<Theme> iced_graphics::window::GLCompositor for Compositor<Theme> {
         }
 
         renderer.with_primitives(|backend, primitive| {
-            backend.present(gl, primitive, viewport, overlay);
+            backend.present(gl, primitive, viewport, overlay, debug);
         });
     }
 }

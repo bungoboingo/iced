@@ -6,7 +6,7 @@ use crate::{Settings, Transformation, Viewport};
 use iced_graphics::backend;
 use iced_graphics::font;
 use iced_graphics::{Layer, Primitive};
-use iced_native::alignment;
+use iced_native::{alignment, Debug};
 use iced_native::{Font, Size};
 
 /// A [`glow`] graphics backend for [`iced`].
@@ -53,13 +53,16 @@ impl Backend {
         primitives: &[Primitive],
         viewport: &Viewport,
         overlay_text: &[T],
+        debug: &mut Debug,
     ) {
         let viewport_size = viewport.physical_size();
         let scale_factor = viewport.scale_factor() as f32;
         let projection = viewport.projection();
 
+        debug.layer_generation_start();
         let mut layers = Layer::generate(primitives, viewport);
         layers.push(Layer::overlay(overlay_text, viewport));
+        debug.layer_generation_finished();
 
         for layer in layers {
             self.flush(
@@ -68,6 +71,7 @@ impl Backend {
                 projection,
                 &layer,
                 viewport_size.height,
+                debug
             );
         }
     }
@@ -79,6 +83,7 @@ impl Backend {
         transformation: Transformation,
         layer: &Layer<'_>,
         target_height: u32,
+        debug: &mut Debug,
     ) {
         let mut bounds = (layer.bounds * scale_factor).snap();
 
@@ -99,6 +104,7 @@ impl Backend {
             );
         }
 
+        debug.triangle_draw_start();
         if !layer.meshes.is_empty() {
             let scaled = transformation
                 * Transformation::scale(scale_factor, scale_factor);
@@ -111,6 +117,7 @@ impl Backend {
                 scale_factor,
             );
         }
+        debug.triangle_draw_end();
 
         if !layer.text.is_empty() {
             for text in layer.text.iter() {
