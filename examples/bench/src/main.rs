@@ -1,12 +1,12 @@
-use iced::widget::canvas::{
-    self, gradient::Location, gradient::Position, Cache, Canvas, Cursor,
-    Geometry, Gradient,
-};
+#[cfg(feature = "gradient")]
+use iced::widget::canvas::gradient::{Gradient, Location, Position};
+
+use iced::widget::canvas::{self, Cache, Canvas, Cursor, Geometry};
 use iced::{
-    executor, time, Application, Color, Command, Element, Length, Point,
-    Rectangle, Renderer, Settings, Size, Subscription, Theme,
+    executor, Application, Color, Command, Element, Length, Point, Rectangle,
+    Renderer, Settings, Size, Theme,
 };
-use std::time::Instant;
+use rand::{thread_rng, Rng};
 
 fn main() -> iced::Result {
     Bench::run(Settings {
@@ -17,21 +17,11 @@ fn main() -> iced::Result {
 }
 
 #[derive(Debug, Clone, Copy)]
-enum Message {
-    Tick(Instant),
-}
+enum Message {}
 
+#[derive(Default)]
 struct Bench {
     cache: Cache,
-    start: Instant,
-    now: Instant,
-}
-
-impl Bench {
-    pub fn update(&mut self, now: Instant) {
-        self.now = now;
-        self.cache.clear();
-    }
 }
 
 impl Application for Bench {
@@ -41,29 +31,14 @@ impl Application for Bench {
     type Flags = ();
 
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
-        let now = Instant::now();
-
-        (
-            Bench {
-                cache: Default::default(),
-                start: now,
-                now,
-            },
-            Command::none(),
-        )
+        (Bench::default(), Command::none())
     }
 
     fn title(&self) -> String {
         String::from("Bench")
     }
 
-    fn update(&mut self, message: Message) -> Command<Message> {
-        match message {
-            Message::Tick(instant) => {
-                self.update(instant);
-            }
-        }
-
+    fn update(&mut self, _message: Message) -> Command<Message> {
         Command::none()
     }
 
@@ -73,11 +48,14 @@ impl Application for Bench {
             .height(Length::Fill)
             .into()
     }
+}
 
-    fn subscription(&self) -> Subscription<Self::Message> {
-        //60 fps
-        time::every(time::Duration::from_secs_f32(0.0167)).map(Message::Tick)
-    }
+fn random_color() -> Color {
+    Color::from_rgb(
+        thread_rng().gen_range(0.0..1.0),
+        thread_rng().gen_range(0.0..1.0),
+        thread_rng().gen_range(0.0..1.0),
+    )
 }
 
 impl<Message> canvas::Program<Message> for Bench {
@@ -91,29 +69,33 @@ impl<Message> canvas::Program<Message> for Bench {
         _cursor: Cursor,
     ) -> Vec<Geometry> {
         let geometry = self.cache.draw(bounds.size(), |frame| {
-            //the gradient must change properties every draw to reload uniform data
+            let size = Size::new(bounds.width / 50.0, bounds.height / 12.0);
 
-            let elapsed = self.now - self.start;
-            let x = elapsed.as_millis();
-            let y = f32::abs(f32::sin(x as f32 / 1000.0));
-            frame.scale_x(y);
+            for row in 0..12 {
+                for rect in 0..50 {
+                    let top_left = Point::new(
+                        size.width * rect as f32,
+                        size.height * row as f32,
+                    );
 
-            let gradient = Gradient::linear(Position::Relative {
-                top_left: Point::ORIGIN,
-                size: Size {
-                    width: frame.width(),
-                    height: frame.height(),
-                },
-                start: Location::Left,
-                end: Location::Right,
-            })
-            .add_stop(0.0, Color::from_rgb(y, 0.0, 0.0))
-            .add_stop(0.5, Color::from_rgb(0.0, y, 0.0))
-            .add_stop(1.0, Color::from_rgb(0.0, 0.0, y))
-            .build()
-            .unwrap();
+                    let fill = random_color();
 
-            frame.fill_rectangle(Point::ORIGIN, bounds.size(), &gradient);
+                    #[cfg(feature = "gradient")]
+                    let fill = &Gradient::linear(Position::Relative {
+                        top_left,
+                        size,
+                        start: Location::TopLeft,
+                        end: Location::BottomRight,
+                    })
+                    .add_stop(0.0, random_color())
+                    .add_stop(0.5, random_color())
+                    .add_stop(1.0, random_color())
+                    .build()
+                    .unwrap();
+
+                    frame.fill_rectangle(top_left, size, fill)
+                }
+            }
         });
 
         vec![geometry]

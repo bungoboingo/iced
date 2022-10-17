@@ -7,3 +7,7 @@ publish = false
 
 [dependencies]
 iced = { path = "../..", features = ["canvas", "tokio", "debug", "glow"] }
+rand = "0.8.5"
+
+[features]
+gradient = []
