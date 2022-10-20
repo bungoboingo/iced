@@ -5,6 +5,22 @@ use iced_native::window;
 pub use window::Id;
 pub use window::{Event, Mode};
 
+/// TODO(derezzedex)
+pub fn spawn<Message>(
+    id: window::Id,
+    settings: window::Settings,
+) -> Command<Message> {
+    Command::single(command::Action::Window(
+        id,
+        window::Action::Spawn { settings },
+    ))
+}
+
+/// TODO(derezzedex)
+pub fn close<Message>(id: window::Id) -> Command<Message> {
+    Command::single(command::Action::Window(id, window::Action::Close))
+}
+
 /// Resizes the window to the given logical dimensions.
 pub fn resize<Message>(
     id: window::Id,

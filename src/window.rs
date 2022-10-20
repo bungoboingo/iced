@@ -4,4 +4,4 @@ pub use iced_native::window::Position;
 pub use iced_native::window::Settings;
 
 #[cfg(not(target_arch = "wasm32"))]
-pub use crate::runtime::window::{move_to, resize, Id};
+pub use crate::runtime::window::{close, move_to, resize, spawn, Id};

@@ -616,6 +616,11 @@ pub fn run_command<A, E>(
                 }
             },
             command::Action::Window(_id, action) => match action {
+                window::Action::Spawn { .. } | window::Action::Close => {
+                    log::info!(
+                        "This is only available on `multi_window::Application`"
+                    )
+                }
                 window::Action::Resize { width, height } => {
                     window.set_inner_size(winit::dpi::LogicalSize {
                         width,
