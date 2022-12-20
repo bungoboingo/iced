@@ -1,6 +1,7 @@
-use crate::gradient::Gradient;
 use crate::triangle;
-use crate::widget::canvas::{path, Fill, Geometry, Path, Stroke, Style, Text};
+use crate::widget::canvas::{
+    path, Fill, Geometry, Gradient, Path, Stroke, Style, Text,
+};
 use crate::Primitive;
 
 use iced_native::{Point, Rectangle, Size, Vector};
@@ -24,10 +25,7 @@ pub struct Frame {
 
 enum Buffer {
     Solid(tessellation::VertexBuffers<triangle::ColoredVertex2D, u32>),
-    Gradient(
-        tessellation::VertexBuffers<triangle::Vertex2D, u32>,
-        Gradient,
-    ),
+    Gradient(tessellation::VertexBuffers<triangle::GradientVertex2D, u32>),
 }
 
 struct BufferStack {
@@ -49,12 +47,11 @@ impl BufferStack {
                     ));
                 }
             },
-            Style::Gradient(gradient) => match self.stack.last() {
-                Some(Buffer::Gradient(_, last)) if gradient == last => {}
+            Style::Gradient(_) => match self.stack.last() {
+                Some(Buffer::Gradient(_)) => {}
                 _ => {
                     self.stack.push(Buffer::Gradient(
                         tessellation::VertexBuffers::new(),
-                        gradient.clone(),
                     ));
                 }
             },
@@ -74,9 +71,14 @@ impl BufferStack {
                     TriangleVertex2DBuilder(color.into_linear()),
                 ))
             }
-            (Style::Gradient(_), Buffer::Gradient(buffer, _)) => Box::new(
-                tessellation::BuffersBuilder::new(buffer, Vertex2DBuilder),
-            ),
+            (Style::Gradient(gradient), Buffer::Gradient(buffer)) => {
+                Box::new(tessellation::BuffersBuilder::new(
+                    buffer,
+                    GradientVertex2DBuilder {
+                        gradient: gradient.clone(),
+                    },
+                ))
+            }
             _ => unreachable!(),
         }
     }
@@ -92,9 +94,14 @@ impl BufferStack {
                     TriangleVertex2DBuilder(color.into_linear()),
                 ))
             }
-            (Style::Gradient(_), Buffer::Gradient(buffer, _)) => Box::new(
-                tessellation::BuffersBuilder::new(buffer, Vertex2DBuilder),
-            ),
+            (Style::Gradient(gradient), Buffer::Gradient(buffer)) => {
+                Box::new(tessellation::BuffersBuilder::new(
+                    buffer,
+                    GradientVertex2DBuilder {
+                        gradient: gradient.clone(),
+                    },
+                ))
+            }
             _ => unreachable!(),
         }
     }
@@ -132,11 +139,13 @@ impl Transform {
     }
 
     fn transform_gradient(&self, mut gradient: Gradient) -> Gradient {
-        let (start, end) = match &mut gradient {
-            Gradient::Linear(linear) => (&mut linear.start, &mut linear.end),
-        };
-        self.transform_point(start);
-        self.transform_point(end);
+        match &mut gradient {
+            Gradient::Linear(linear) => {
+                self.transform_point(&mut linear.start);
+                self.transform_point(&mut linear.end);
+            }
+        }
+
         gradient
     }
 }
@@ -444,7 +453,7 @@ impl Frame {
                         })
                     }
                 }
-                Buffer::Gradient(buffer, gradient) => {
+                Buffer::Gradient(buffer) => {
                     if !buffer.indices.is_empty() {
                         self.primitives.push(Primitive::GradientMesh {
                             buffers: triangle::Mesh2D {
@@ -452,7 +461,6 @@ impl Frame {
                                 indices: buffer.indices,
                             },
                             size: self.size,
-                            gradient,
                         })
                     }
                 }
@@ -463,34 +471,38 @@ impl Frame {
     }
 }
 
-struct Vertex2DBuilder;
+struct GradientVertex2DBuilder {
+    gradient: Gradient,
+}
 
-impl tessellation::FillVertexConstructor<triangle::Vertex2D>
-    for Vertex2DBuilder
+impl tessellation::FillVertexConstructor<triangle::GradientVertex2D>
+    for GradientVertex2DBuilder
 {
     fn new_vertex(
         &mut self,
         vertex: tessellation::FillVertex<'_>,
-    ) -> triangle::Vertex2D {
+    ) -> triangle::GradientVertex2D {
         let position = vertex.position();
 
-        triangle::Vertex2D {
+        triangle::GradientVertex2D {
             position: [position.x, position.y],
+            gradient: self.gradient.flatten(),
         }
     }
 }
 
-impl tessellation::StrokeVertexConstructor<triangle::Vertex2D>
-    for Vertex2DBuilder
+impl tessellation::StrokeVertexConstructor<triangle::GradientVertex2D>
+    for GradientVertex2DBuilder
 {
     fn new_vertex(
         &mut self,
         vertex: tessellation::StrokeVertex<'_, '_>,
-    ) -> triangle::Vertex2D {
+    ) -> triangle::GradientVertex2D {
         let position = vertex.position();
 
-        triangle::Vertex2D {
+        triangle::GradientVertex2D {
             position: [position.x, position.y],
+            gradient: self.gradient.flatten(),
         }
     }
 }

@@ -2,11 +2,10 @@
 use crate::program;
 use crate::Transformation;
 
-use iced_graphics::gradient::Gradient;
 use iced_graphics::layer::mesh::{self, Mesh};
-use iced_graphics::triangle::{ColoredVertex2D, Vertex2D};
+use iced_graphics::triangle::{ColoredVertex2D, GradientVertex2D};
 
-use glow::HasContext;
+use glow::{Context, HasContext, NativeProgram};
 use std::marker::PhantomData;
 
 #[cfg(feature = "tracing")]
@@ -120,7 +119,7 @@ impl Pipeline {
                         gl.buffer_sub_data_u8_slice(
                             glow::ARRAY_BUFFER,
                             (gradient_vertex_offset
-                                * std::mem::size_of::<Vertex2D>())
+                                * std::mem::size_of::<GradientVertex2D>())
                                 as i32,
                             bytemuck::cast_slice(&buffers.vertices),
                         );
@@ -180,84 +179,18 @@ impl Pipeline {
 
                     last_solid_vertex += buffers.vertices.len();
                 },
-                Mesh::Gradient {
-                    buffers, gradient, ..
-                } => unsafe {
+                Mesh::Gradient { buffers, .. } => unsafe {
                     gl.use_program(Some(self.gradient.program));
                     gl.bind_vertex_array(Some(self.gradient.vertex_array));
 
                     if transform != self.gradient.uniforms.transform {
                         gl.uniform_matrix_4_f32_slice(
-                            Some(&self.gradient.uniforms.locations.transform),
+                            Some(&self.gradient.uniforms.transform_location),
                             false,
                             transform.as_ref(),
                         );
 
                         self.gradient.uniforms.transform = transform;
-                    }
-
-                    if &self.gradient.uniforms.gradient != *gradient {
-                        match gradient {
-                            Gradient::Linear(linear) => {
-                                gl.uniform_4_f32(
-                                    Some(
-                                        &self
-                                            .gradient
-                                            .uniforms
-                                            .locations
-                                            .gradient_direction,
-                                    ),
-                                    linear.start.x,
-                                    linear.start.y,
-                                    linear.end.x,
-                                    linear.end.y,
-                                );
-
-                                gl.uniform_1_i32(
-                                    Some(
-                                        &self
-                                            .gradient
-                                            .uniforms
-                                            .locations
-                                            .color_stops_size,
-                                    ),
-                                    (linear.color_stops.len() * 2) as i32,
-                                );
-
-                                let mut stops = [0.0; 128];
-
-                                for (index, stop) in linear
-                                    .color_stops
-                                    .iter()
-                                    .enumerate()
-                                    .take(16)
-                                {
-                                    let [r, g, b, a] = stop.color.into_linear();
-
-                                    stops[index * 8] = r;
-                                    stops[(index * 8) + 1] = g;
-                                    stops[(index * 8) + 2] = b;
-                                    stops[(index * 8) + 3] = a;
-                                    stops[(index * 8) + 4] = stop.offset;
-                                    stops[(index * 8) + 5] = 0.;
-                                    stops[(index * 8) + 6] = 0.;
-                                    stops[(index * 8) + 7] = 0.;
-                                }
-
-                                gl.uniform_4_f32_slice(
-                                    Some(
-                                        &self
-                                            .gradient
-                                            .uniforms
-                                            .locations
-                                            .color_stops,
-                                    ),
-                                    &stops,
-                                );
-                            }
-                        }
-
-                        self.gradient.uniforms.gradient = (*gradient).clone();
                     }
 
                     gl.draw_elements_base_vertex(
@@ -329,40 +262,75 @@ impl<T> Buffer<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct Uniforms {
+    pub transform: Transformation,
+    pub transform_location: <Context as HasContext>::UniformLocation,
+}
+
+impl Uniforms {
+    fn new(gl: &Context, program: NativeProgram) -> Self {
+        let transform = Transformation::identity();
+        let transform_location =
+            unsafe { gl.get_uniform_location(program, "u_transform") }
+                .expect("Get u_transform.");
+
+        unsafe {
+            gl.use_program(Some(program));
+
+            gl.uniform_matrix_4_f32_slice(
+                Some(&transform_location),
+                false,
+                transform.as_ref(),
+            );
+
+            gl.use_program(None);
+        }
+
+        Self {
+            transform,
+            transform_location,
+        }
+    }
+}
+
 mod solid {
     use crate::program;
-    use crate::triangle;
-    use glow::{Context, HasContext, NativeProgram};
+    use crate::triangle::{self, Uniforms};
+    use glow::{Context, HasContext};
     use iced_graphics::triangle::ColoredVertex2D;
-    use iced_graphics::Transformation;
 
     #[derive(Debug)]
     pub struct Program {
         pub program: <Context as HasContext>::Program,
-        pub vertex_array: <glow::Context as HasContext>::VertexArray,
+        pub vertex_array: <Context as HasContext>::VertexArray,
         pub vertices: triangle::Buffer<ColoredVertex2D>,
         pub uniforms: Uniforms,
     }
 
     impl Program {
         pub fn new(gl: &Context, shader_version: &program::Version) -> Self {
+            log::info!("GLOW: compiling triangle solid shaders.");
+
             let program = unsafe {
                 let vertex_shader = program::Shader::vertex(
                     gl,
                     shader_version,
-                    include_str!("shader/common/solid.vert"),
+                    [],
+                    include_str!("shader/triangle/solid.vert"),
                 );
 
                 let fragment_shader = program::Shader::fragment(
                     gl,
                     shader_version,
-                    include_str!("shader/common/solid.frag"),
+                    [],
+                    include_str!("shader/triangle/solid.frag"),
                 );
 
                 program::create(
                     gl,
                     &[vertex_shader, fragment_shader],
-                    &[(0, "i_Position"), (1, "i_Color")],
+                    &[(0, "i_position"), (1, "i_color")],
                 )
             };
 
@@ -384,6 +352,7 @@ mod solid {
 
                 let stride = std::mem::size_of::<ColoredVertex2D>() as i32;
 
+                // Position
                 gl.enable_vertex_attrib_array(0);
                 gl.vertex_attrib_pointer_f32(
                     0,
@@ -394,6 +363,7 @@ mod solid {
                     0,
                 );
 
+                // Color
                 gl.enable_vertex_attrib_array(1);
                 gl.vertex_attrib_pointer_f32(
                     1,
@@ -415,75 +385,57 @@ mod solid {
             }
         }
     }
-
-    #[derive(Debug)]
-    pub struct Uniforms {
-        pub transform: Transformation,
-        pub transform_location: <Context as HasContext>::UniformLocation,
-    }
-
-    impl Uniforms {
-        fn new(gl: &Context, program: NativeProgram) -> Self {
-            let transform = Transformation::identity();
-            let transform_location =
-                unsafe { gl.get_uniform_location(program, "u_Transform") }
-                    .expect("Solid - Get u_Transform.");
-
-            unsafe {
-                gl.use_program(Some(program));
-
-                gl.uniform_matrix_4_f32_slice(
-                    Some(&transform_location),
-                    false,
-                    transform.as_ref(),
-                );
-
-                gl.use_program(None);
-            }
-
-            Self {
-                transform,
-                transform_location,
-            }
-        }
-    }
 }
 
 mod gradient {
     use crate::program;
-    use crate::triangle;
-    use glow::{Context, HasContext, NativeProgram};
-    use iced_graphics::gradient::{self, Gradient};
-    use iced_graphics::triangle::Vertex2D;
-    use iced_graphics::Transformation;
+    use crate::triangle::{self, Uniforms};
+    use glow::{Context, HasContext};
+    use iced_graphics::triangle::GradientVertex2D;
 
     #[derive(Debug)]
     pub struct Program {
         pub program: <Context as HasContext>::Program,
         pub vertex_array: <glow::Context as HasContext>::VertexArray,
-        pub vertices: triangle::Buffer<Vertex2D>,
+        pub vertices: triangle::Buffer<GradientVertex2D>,
         pub uniforms: Uniforms,
     }
 
     impl Program {
         pub fn new(gl: &Context, shader_version: &program::Version) -> Self {
+            log::info!("GLOW: compiling triangle gradient shaders.");
             let program = unsafe {
                 let vertex_shader = program::Shader::vertex(
                     gl,
                     shader_version,
-                    include_str!("shader/common/gradient.vert"),
+                    [],
+                    include_str!("shader/triangle/gradient.vert"),
                 );
 
                 let fragment_shader = program::Shader::fragment(
                     gl,
                     shader_version,
-                    include_str!("shader/common/gradient.frag"),
+                    [include_str!("shader/includes/gradient.frag")],
+                    include_str!("shader/triangle/gradient.frag"),
                 );
 
                 program::create(
                     gl,
                     &[vertex_shader, fragment_shader],
-                    &[(0, "i_Position")],
+                    &[
+                        (0, "i_position"),
+                        (1, "i_colors_1"),
+                        (2, "i_colors_2"),
+                        (3, "i_colors_3"),
+                        (4, "i_colors_4"),
+                        (5, "i_colors_5"),
+                        (6, "i_colors_6"),
+                        (7, "i_colors_7"),
+                        (8, "i_colors_8"),
+                        (9, "i_offsets_1"),
+                        (10, "i_offsets_2"),
+                        (11, "i_direction"),
+                    ],
                 )
             };
 
@@ -503,8 +455,9 @@ mod gradient {
             unsafe {
                 gl.bind_vertex_array(Some(vertex_array));
 
-                let stride = std::mem::size_of::<Vertex2D>() as i32;
+                let stride = std::mem::size_of::<GradientVertex2D>() as i32;
 
+                // Position
                 gl.enable_vertex_attrib_array(0);
                 gl.vertex_attrib_pointer_f32(
                     0,
@@ -515,6 +468,52 @@ mod gradient {
                     0,
                 );
 
+                // Colors vec4 array[8] (indices 1-8)
+                for i in 0..=7 {
+                    gl.enable_vertex_attrib_array(i + 1);
+                    gl.vertex_attrib_pointer_f32(
+                        i + 1,
+                        4,
+                        glow::FLOAT,
+                        false,
+                        stride,
+                        (4 * (2 + (i * 4))) as i32,
+                    )
+                }
+
+                // Offsets 1-4
+                gl.enable_vertex_attrib_array(9);
+                gl.vertex_attrib_pointer_f32(
+                    9,
+                    4,
+                    glow::FLOAT,
+                    false,
+                    stride,
+                    4 * 34,
+                );
+
+                // Offsets 5-8
+                gl.enable_vertex_attrib_array(10);
+                gl.vertex_attrib_pointer_f32(
+                    10,
+                    4,
+                    glow::FLOAT,
+                    false,
+                    stride,
+                    4 * (34 + 4),
+                );
+
+                // Direction
+                gl.enable_vertex_attrib_array(11);
+                gl.vertex_attrib_pointer_f32(
+                    11,
+                    4,
+                    glow::FLOAT,
+                    false,
+                    stride,
+                    4 * (34 + 4 + 4),
+                );
+
                 gl.bind_vertex_array(None);
             };
 
@@ -523,72 +522,6 @@ mod gradient {
                 vertex_array,
                 vertices,
                 uniforms: Uniforms::new(gl, program),
-            }
-        }
-    }
-
-    #[derive(Debug)]
-    pub struct Uniforms {
-        pub gradient: Gradient,
-        pub transform: Transformation,
-        pub locations: Locations,
-    }
-
-    #[derive(Debug)]
-    pub struct Locations {
-        pub gradient_direction: <Context as HasContext>::UniformLocation,
-        pub color_stops_size: <Context as HasContext>::UniformLocation,
-        //currently the maximum number of stops is 16 due to lack of SSBO in GL2.1
-        pub color_stops: <Context as HasContext>::UniformLocation,
-        pub transform: <Context as HasContext>::UniformLocation,
-    }
-
-    impl Uniforms {
-        fn new(gl: &Context, program: NativeProgram) -> Self {
-            let gradient_direction = unsafe {
-                gl.get_uniform_location(program, "gradient_direction")
-            }
-            .expect("Gradient - Get gradient_direction.");
-
-            let color_stops_size =
-                unsafe { gl.get_uniform_location(program, "color_stops_size") }
-                    .expect("Gradient - Get color_stops_size.");
-
-            let color_stops = unsafe {
-                gl.get_uniform_location(program, "color_stops")
-                    .expect("Gradient - Get color_stops.")
-            };
-
-            let transform = Transformation::identity();
-            let transform_location =
-                unsafe { gl.get_uniform_location(program, "u_Transform") }
-                    .expect("Solid - Get u_Transform.");
-
-            unsafe {
-                gl.use_program(Some(program));
-
-                gl.uniform_matrix_4_f32_slice(
-                    Some(&transform_location),
-                    false,
-                    transform.as_ref(),
-                );
-
-                gl.use_program(None);
-            }
-
-            Self {
-                gradient: Gradient::Linear(gradient::Linear {
-                    start: Default::default(),
-                    end: Default::default(),
-                    color_stops: vec![],
-                }),
-                transform: Transformation::identity(),
-                locations: Locations {
-                    gradient_direction,
-                    color_stops_size,
-                    color_stops,
-                    transform: transform_location,
-                },
             }
         }
     }

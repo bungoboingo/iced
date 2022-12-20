@@ -40,7 +40,7 @@ impl Pipeline {
         &mut self,
         gl: &glow::Context,
         target_height: u32,
-        instances: &[layer::Quad],
+        instances: &layer::Quads,
         transformation: Transformation,
         scale: f32,
         bounds: Rectangle<u32>,

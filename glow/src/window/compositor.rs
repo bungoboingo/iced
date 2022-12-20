@@ -27,9 +27,9 @@ impl<Theme> iced_graphics::window::GLCompositor for Compositor<Theme> {
 
         let version = gl.version();
         log::info!(
-            "OpenGL version: {:?} (Embedded: {})",
+            "OpenGL (Embedded: {}) version: {:?}",
+            version.is_embedded,
             version,
-            version.is_embedded
         );
 
         let renderer = gl.get_parameter_string(glow::RENDERER);

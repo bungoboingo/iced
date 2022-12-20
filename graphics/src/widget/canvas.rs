@@ -16,20 +16,20 @@ mod program;
 mod style;
 mod text;
 
-pub use crate::gradient::{self, Gradient};
 pub use cache::Cache;
 pub use cursor::Cursor;
 pub use event::Event;
 pub use fill::{Fill, FillRule};
 pub use frame::Frame;
 pub use geometry::Geometry;
+pub use gradient::Gradient;
 pub use path::Path;
 pub use program::Program;
 pub use stroke::{LineCap, LineDash, LineJoin, Stroke};
 pub use style::Style;
 pub use text::Text;
 
-use crate::{Backend, Primitive, Renderer};
+use crate::{gradient, Backend, Primitive, Renderer};
 
 use iced_native::layout::{self, Layout};
 use iced_native::mouse;

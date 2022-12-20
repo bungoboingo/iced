@@ -2,7 +2,7 @@ mod storage;
 
 use storage::Storage;
 
-pub use iced_graphics::triangle::{Mesh2D, Vertex2D};
+pub use iced_graphics::triangle::{GradientVertex2D, Mesh2D};
 
 use crate::program::{self, Shader};
 use crate::Transformation;
@@ -46,12 +46,14 @@ impl Pipeline {
             let vertex_shader = Shader::vertex(
                 gl,
                 shader_version,
-                include_str!("shader/common/image.vert"),
+                [],
+                include_str!("shader/triangle/image.vert"),
             );
             let fragment_shader = Shader::fragment(
                 gl,
                 shader_version,
-                include_str!("shader/common/image.frag"),
+                [],
+                include_str!("shader/triangle/image.frag"),
             );
 
             program::create(

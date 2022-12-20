@@ -85,10 +85,11 @@ impl Shader {
     pub fn vertex(
         gl: &glow::Context,
         version: &Version,
+        includes: impl IntoIterator<Item = &'static str>,
         content: &'static str,
     ) -> Self {
-        let content = format!("{}\n{}", version.vertex, content);
-
+        log::info!("GLOW - Compiling vertex shader.");
+        let content = concat_shader(&version.vertex, content, includes);
         Shader::compile(gl, glow::VERTEX_SHADER, &content)
     }
 
@@ -96,11 +97,32 @@ impl Shader {
     pub fn fragment(
         gl: &glow::Context,
         version: &Version,
+        includes: impl IntoIterator<Item = &'static str>,
         content: &'static str,
     ) -> Self {
-        let content = format!("{}\n{}", version.fragment, content);
-
+        log::info!("GLOW - Compiling fragment shader.");
+        let content = concat_shader(&version.fragment, content, includes);
         Shader::compile(gl, glow::FRAGMENT_SHADER, &content)
+    }
+}
+
+fn concat_shader(
+    version: &String,
+    content: &'static str,
+    includes: impl IntoIterator<Item = &'static str>,
+) -> String {
+    let includes = includes
+        .into_iter()
+        .fold(String::new(), |acc, i| acc + "\n" + i);
+
+    if includes.is_empty() {
+        format!("{}\n{}", version, content)
+    } else {
+        format!(
+            "{}\n{}",
+            version,
+            content.replace("// #includes", includes.as_str())
+        )
     }
 }
 

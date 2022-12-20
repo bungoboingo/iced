@@ -1,6 +1,6 @@
 //! A collection of triangle primitives.
 use crate::triangle;
-use crate::{Gradient, Point, Rectangle};
+use crate::{Point, Rectangle};
 
 /// A mesh of triangles.
 #[derive(Debug, Clone, Copy)]
@@ -22,13 +22,10 @@ pub enum Mesh<'a> {
         origin: Point,
 
         /// The vertex and index buffers of the [`Mesh`].
-        buffers: &'a triangle::Mesh2D<triangle::Vertex2D>,
+        buffers: &'a triangle::Mesh2D<triangle::GradientVertex2D>,
 
         /// The clipping bounds of the [`Mesh`].
         clip_bounds: Rectangle<f32>,
-
-        /// The gradient to apply to the [`Mesh`].
-        gradient: &'a Gradient,
     },
 }
 
