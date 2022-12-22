@@ -4,7 +4,7 @@ use glow::HasContext;
 use iced_graphics::layer;
 use iced_native::Rectangle;
 
-const MAX_INSTANCES: usize = 100_000;
+const INITIAL_INSTANCES: usize = 10_000;
 
 #[derive(Debug)]
 pub struct Pipeline {
@@ -165,7 +165,7 @@ impl Pipeline {
 
 mod solid {
     use crate::program::{self, Shader};
-    use crate::quad::core::{Uniforms, MAX_INSTANCES};
+    use crate::quad::core::{Uniforms, INITIAL_INSTANCES};
     use glow::HasContext;
     use iced_graphics::layer::quad;
 
@@ -216,7 +216,7 @@ mod solid {
             };
 
             let (vertex_array, instances) =
-                unsafe { Self::create_instance_buffer(gl, MAX_INSTANCES) };
+                unsafe { Self::create_instance_buffer(gl, INITIAL_INSTANCES) };
 
             Self {
                 program,
@@ -330,7 +330,7 @@ mod solid {
 
 mod gradient {
     use crate::program::{self, Shader};
-    use crate::quad::core::{Uniforms, MAX_INSTANCES};
+    use crate::quad::core::{Uniforms, INITIAL_INSTANCES};
     use glow::HasContext;
     use iced_graphics::layer::quad;
 
@@ -391,7 +391,7 @@ mod gradient {
             };
 
             let (vertex_array, instances) =
-                unsafe { Self::create_instance_buffer(gl, MAX_INSTANCES) };
+                unsafe { Self::create_instance_buffer(gl, INITIAL_INSTANCES) };
 
             Self {
                 program,
@@ -540,7 +540,7 @@ fn draw_instances<T>(gl: &glow::Context, instances: &[T])
 where
     T: bytemuck::Zeroable + bytemuck::Pod,
 {
-    for instances_chunk in instances.chunks(MAX_INSTANCES) {
+    for instances_chunk in instances.chunks(INITIAL_INSTANCES) {
         unsafe {
             gl.buffer_sub_data_u8_slice(
                 glow::ARRAY_BUFFER,

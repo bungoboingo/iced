@@ -23,7 +23,7 @@ impl Gradient {
     }
 
     /// Packs the [`Gradient`] into a buffer for use in shader code.
-    pub fn flatten(&self) -> [f32; 44] {
+    pub fn pack(&self) -> [f32; 44] {
         match self {
             Gradient::Linear(linear) => {
                 let mut pack: [f32; 44] = [0.0; 44];

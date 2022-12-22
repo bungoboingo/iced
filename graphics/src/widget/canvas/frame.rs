@@ -486,7 +486,7 @@ impl tessellation::FillVertexConstructor<triangle::GradientVertex2D>
 
         triangle::GradientVertex2D {
             position: [position.x, position.y],
-            gradient: self.gradient.flatten(),
+            gradient: self.gradient.pack(),
         }
     }
 }
@@ -502,7 +502,7 @@ impl tessellation::StrokeVertexConstructor<triangle::GradientVertex2D>
 
         triangle::GradientVertex2D {
             position: [position.x, position.y],
-            gradient: self.gradient.flatten(),
+            gradient: self.gradient.pack(),
         }
     }
 }

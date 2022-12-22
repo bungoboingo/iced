@@ -11,8 +11,8 @@ use std::marker::PhantomData;
 #[cfg(feature = "tracing")]
 use tracing::info_span;
 
-const DEFAULT_VERTICES: usize = 1_000;
-const DEFAULT_INDICES: usize = 1_000;
+const INITIAL_VERTICES: usize = 10_000;
+const INITIAL_INDICES: usize = 10_000;
 
 #[derive(Debug)]
 pub(crate) struct Pipeline {
@@ -28,7 +28,7 @@ impl Pipeline {
                 gl,
                 glow::ELEMENT_ARRAY_BUFFER,
                 glow::DYNAMIC_DRAW,
-                DEFAULT_INDICES,
+                INITIAL_INDICES,
             )
         };
 
@@ -343,7 +343,7 @@ mod solid {
                     gl,
                     glow::ARRAY_BUFFER,
                     glow::DYNAMIC_DRAW,
-                    super::DEFAULT_VERTICES,
+                    super::INITIAL_VERTICES,
                 )
             };
 
@@ -448,7 +448,7 @@ mod gradient {
                     gl,
                     glow::ARRAY_BUFFER,
                     glow::DYNAMIC_DRAW,
-                    super::DEFAULT_VERTICES,
+                    super::INITIAL_VERTICES,
                 )
             };
 

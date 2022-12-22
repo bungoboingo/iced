@@ -383,7 +383,7 @@ mod solid {
                     ),
                     source: wgpu::ShaderSource::Wgsl(
                         std::borrow::Cow::Borrowed(include_str!(
-                            "shader/triangle/solid.wgsl"
+                            "shader/triangle.wgsl"
                         )),
                     ),
                 });
@@ -394,7 +394,7 @@ mod solid {
                     layout: Some(&layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
-                        entry_point: "vs_main",
+                        entry_point: "solid_vs_main",
                         buffers: &[wgpu::VertexBufferLayout {
                             array_stride: std::mem::size_of::<
                                 triangle::ColoredVertex2D,
@@ -411,7 +411,7 @@ mod solid {
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: "fs_main",
+                        entry_point: "solid_fs_main",
                         targets: &[triangle::fragment_target(format)],
                     }),
                     primitive: triangle::primitive_state(),
@@ -530,7 +530,7 @@ mod gradient {
                     ),
                     source: wgpu::ShaderSource::Wgsl(
                         std::borrow::Cow::Borrowed(include_str!(
-                            "shader/triangle/gradient.wgsl"
+                            "shader/triangle.wgsl"
                         )),
                     ),
                 });
@@ -541,7 +541,7 @@ mod gradient {
                     layout: Some(&layout),
                     vertex: wgpu::VertexState {
                         module: &shader,
-                        entry_point: "vs_main",
+                        entry_point: "gradient_vs_main",
                         buffers: &[wgpu::VertexBufferLayout {
                             array_stride: std::mem::size_of::<GradientVertex2D>(
                             ) as u64,
@@ -576,7 +576,7 @@ mod gradient {
                     },
                     fragment: Some(wgpu::FragmentState {
                         module: &shader,
-                        entry_point: "fs_main",
+                        entry_point: "gradient_fs_main",
                         targets: &[triangle::fragment_target(format)],
                     }),
                     primitive: triangle::primitive_state(),

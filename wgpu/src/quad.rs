@@ -216,7 +216,7 @@ const QUAD_VERTS: [QuadVertex; 4] = [
     },
 ];
 
-const MAX_INSTANCES: usize = 100_000;
+const INITIAL_INSTANCES: usize = 10_000;
 
 #[derive(Debug, Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
@@ -250,7 +250,7 @@ impl Default for Uniforms {
 
 mod solid {
     use crate::buffer;
-    use crate::quad::{QuadVertex, MAX_INSTANCES};
+    use crate::quad::{QuadVertex, INITIAL_INSTANCES};
     use iced_graphics::layer::quad;
     use std::mem;
 
@@ -270,7 +270,7 @@ mod solid {
                 device,
                 "iced_wgpu::quad::solid instance buffer",
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                MAX_INSTANCES,
+                INITIAL_INSTANCES,
             );
 
             let layout = device.create_pipeline_layout(
@@ -377,7 +377,7 @@ mod solid {
 
 mod gradient {
     use crate::buffer;
-    use crate::quad::{QuadVertex, MAX_INSTANCES};
+    use crate::quad::{QuadVertex, INITIAL_INSTANCES};
     use iced_graphics::layer::quad;
     use std::mem;
 
@@ -397,7 +397,7 @@ mod gradient {
                 device,
                 "iced_wgpu::quad::gradient instance buffer",
                 wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-                MAX_INSTANCES,
+                INITIAL_INSTANCES,
             );
 
             let layout = device.create_pipeline_layout(

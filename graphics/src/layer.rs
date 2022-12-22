@@ -189,7 +189,7 @@ impl<'a> Layer<'a> {
                     }
                     Background::Gradient(gradient) => {
                         let quad = quad::Gradient {
-                            gradient: (*gradient).flatten(Rectangle::new(
+                            gradient: (*gradient).pack(Rectangle::new(
                                 properties.position.into(),
                                 properties.size.into(),
                             )),
