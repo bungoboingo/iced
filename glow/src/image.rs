@@ -46,13 +46,11 @@ impl Pipeline {
             let vertex_shader = Shader::vertex(
                 gl,
                 shader_version,
-                [],
                 include_str!("shader/triangle/image.vert"),
             );
             let fragment_shader = Shader::fragment(
                 gl,
                 shader_version,
-                [],
                 include_str!("shader/triangle/image.frag"),
             );
 

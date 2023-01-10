@@ -316,14 +316,12 @@ mod solid {
                 let vertex_shader = program::Shader::vertex(
                     gl,
                     shader_version,
-                    [],
                     include_str!("shader/triangle/solid.vert"),
                 );
 
                 let fragment_shader = program::Shader::fragment(
                     gl,
                     shader_version,
-                    [],
                     include_str!("shader/triangle/solid.frag"),
                 );
 
@@ -408,14 +406,12 @@ mod gradient {
                 let vertex_shader = program::Shader::vertex(
                     gl,
                     shader_version,
-                    [],
                     include_str!("shader/triangle/gradient.vert"),
                 );
 
                 let fragment_shader = program::Shader::fragment(
                     gl,
                     shader_version,
-                    [include_str!("shader/includes/gradient.frag")],
                     include_str!("shader/triangle/gradient.frag"),
                 );
 

@@ -95,16 +95,11 @@ mod solid {
                 let vertex_shader = Shader::vertex(
                     gl,
                     shader_version,
-                    [],
                     include_str!("../shader/quad/compatibility/solid.vert"),
                 );
                 let fragment_shader = Shader::fragment(
                     gl,
                     shader_version,
-                    [
-                        include_str!("../shader/includes/border_radius.vert"),
-                        include_str!("../shader/includes/quad_distance.vert"),
-                    ],
                     include_str!("../shader/quad/compatibility/solid.frag"),
                 );
 
@@ -286,17 +281,11 @@ mod gradient {
                 let vertex_shader = Shader::vertex(
                     gl,
                     shader_version,
-                    [],
                     include_str!("../shader/quad/compatibility/gradient.vert"),
                 );
                 let fragment_shader = Shader::fragment(
                     gl,
                     shader_version,
-                    [
-                        include_str!("../shader/includes/border_radius.vert"),
-                        include_str!("../shader/includes/quad_distance.vert"),
-                        include_str!("../shader/includes/gradient.frag"),
-                    ],
                     include_str!("../shader/quad/compatibility/gradient.frag"),
                 );
 
