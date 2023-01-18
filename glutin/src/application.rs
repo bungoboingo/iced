@@ -595,3 +595,23 @@ async fn run_instance<A, E, C>(
     // Manually drop the user interface
     drop(ManuallyDrop::into_inner(user_interface));
 }
+
+#[allow(unsafe_code)]
+/// Creates a new [`glutin::Surface<WindowSurface>`].
+pub fn gl_surface(
+    display: &Display,
+    gl_config: &Config,
+    window: &winit::window::Window,
+) -> Result<Surface<WindowSurface>, glutin::error::Error> {
+    let (width, height) = window.inner_size().into();
+
+    let surface_attributes = SurfaceAttributesBuilder::<WindowSurface>::new()
+        .with_srgb(Some(true))
+        .build(
+            window.raw_window_handle(),
+            NonZeroU32::new(width).unwrap_or(ONE),
+            NonZeroU32::new(height).unwrap_or(ONE),
+        );
+
+    unsafe { display.create_window_surface(gl_config, &surface_attributes) }
+}

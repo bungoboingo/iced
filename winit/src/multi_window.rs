@@ -33,11 +33,17 @@ use std::mem::ManuallyDrop;
 pub enum Event<Message> {
     /// An [`Application`] generated message
     Application(Message),
-
     /// TODO(derezzedex)
     // Create a wrapper variant of `window::Event` type instead
     // (maybe we should also allow users to listen/react to those internal messages?)
-    NewWindow(window::Id, settings::Window),
+    NewWindow {
+        /// The [window::Id] of the newly spawned [`Window`].
+        id: window::Id,
+        /// The [settings::Window] of the newly spawned [`Window`].
+        settings: settings::Window,
+        /// The title of the newly spawned [`Window`].
+        title: String,
+    },
     /// TODO(derezzedex)
     CloseWindow(window::Id),
     /// TODO(derezzedex)
@@ -96,11 +102,11 @@ where
     /// load state from a file, perform an initial HTTP request, etc.
     fn new(flags: Self::Flags) -> (Self, Command<Self::Message>);
 
-    /// Returns the current title of the [`Application`].
+    /// Returns the current title of the current [`Application`] window.
     ///
     /// This title can be dynamic! The runtime will automatically update the
     /// title of your application when necessary.
-    fn title(&self) -> String;
+    fn title(&self, window_id: window::Id) -> String;
 
     /// Returns the current [`Theme`] of the [`Application`].
     fn theme(&self) -> <Self::Renderer as crate::Renderer>::Theme;
@@ -145,7 +151,7 @@ where
         false
     }
 
-    /// TODO(derezzedex)
+    /// Requests that the [`window`] be closed.
     fn close_requested(&self, window: window::Id) -> Self::Message;
 }
 
@@ -185,7 +191,7 @@ where
     };
 
     let builder = settings.window.into_builder(
-        &application.title(),
+        &application.title(window::Id::MAIN),
         event_loop.primary_monitor(),
         settings.id,
     );
@@ -254,14 +260,13 @@ where
                 event: winit::event::WindowEvent::Resized(*new_inner_size),
                 window_id,
             }),
-            winit::event::Event::UserEvent(Event::NewWindow(id, settings)) => {
-                // TODO(derezzedex)
+            winit::event::Event::UserEvent(Event::NewWindow {
+                id,
+                settings,
+                title,
+            }) => {
                 let window = settings
-                    .into_builder(
-                        "fix window title",
-                        event_loop.primary_monitor(),
-                        None,
-                    )
+                    .into_builder(&title, event_loop.primary_monitor(), None)
                     .build(event_loop)
                     .expect("Failed to build window");
 
@@ -321,9 +326,7 @@ async fn run_instance<A, E, C>(
 
     for (&id, window) in windows.keys().zip(windows.values()) {
         let mut surface = compositor.create_surface(window);
-
-        let state = State::new(&application, window);
-
+        let state = State::new(&application, id, window);
         let physical_size = state.physical_size();
 
         compositor.configure_surface(
@@ -457,7 +460,11 @@ async fn run_instance<A, E, C>(
                         );
 
                         // Update window
-                        state.synchronize(&application, &windows);
+                        state.synchronize(
+                            &application,
+                            id,
+                            windows.get(&id).expect("No window found with ID."),
+                        );
 
                         let should_exit = application.should_exit();
 
@@ -523,7 +530,7 @@ async fn run_instance<A, E, C>(
                 Event::WindowCreated(id, window) => {
                     let mut surface = compositor.create_surface(&window);
 
-                    let state = State::new(&application, &window);
+                    let state = State::new(&application, id, &window);
 
                     let physical_size = state.physical_size();
 
@@ -549,30 +556,51 @@ async fn run_instance<A, E, C>(
                     let _ = windows.insert(id, window);
                 }
                 Event::CloseWindow(id) => {
-                    // TODO(derezzedex): log errors
                     if let Some(window) = windows.get(&id) {
                         if window_ids.remove(&window.id()).is_none() {
-                            println!("Failed to remove from `window_ids`!");
+                            log::error!("Failed to remove window with id {:?} from window_ids.", window.id());
                         }
+                    } else {
+                        log::error!(
+                            "Could not find window with id {:?} in windows.",
+                            id
+                        );
                     }
                     if states.remove(&id).is_none() {
-                        println!("Failed to remove from `states`!")
+                        log::error!(
+                            "Failed to remove window {:?} from states.",
+                            id
+                        );
                     }
                     if interfaces.remove(&id).is_none() {
-                        println!("Failed to remove from `interfaces`!");
+                        log::error!(
+                            "Failed to remove window {:?} from interfaces.",
+                            id
+                        );
                     }
                     if windows.remove(&id).is_none() {
-                        println!("Failed to remove from `windows`!")
+                        log::error!(
+                            "Failed to remove window {:?} from windows.",
+                            id
+                        );
                     }
                     if surfaces.remove(&id).is_none() {
-                        println!("Failed to remove from `surfaces`!")
+                        log::error!(
+                            "Failed to remove window {:?} from surfaces.",
+                            id
+                        );
                     }
 
                     if windows.is_empty() {
+                        log::info!(
+                            "All windows are closed. Terminating program."
+                        );
                         break 'main;
+                    } else {
+                        log::info!("Remaining windows: {:?}", windows.len());
                     }
                 }
-                Event::NewWindow(_, _) => unreachable!(),
+                Event::NewWindow { .. } => unreachable!(),
             },
             event::Event::RedrawRequested(id) => {
                 let state = window_ids
@@ -708,11 +736,10 @@ async fn run_instance<A, E, C>(
                             ));
                         }
                     } else {
-                        // TODO(derezzedex): log error
+                        log::error!("No window state found for id: {:?}", window_id);
                     }
                 } else {
-                    // TODO(derezzedex): log error
-                    // println!("{:?}: {:?}", window_id, window_event);
+                    log::error!("No window found with id: {:?}", window_id);
                 }
             }
             _ => {}
@@ -856,7 +883,11 @@ pub fn run_command<A, E>(
             command::Action::Window(id, action) => match action {
                 window::Action::Spawn { settings } => {
                     proxy
-                        .send_event(Event::NewWindow(id, settings.into()))
+                        .send_event(Event::NewWindow {
+                            id,
+                            settings: settings.into(),
+                            title: application.title(id),
+                        })
                         .expect("Send message to event loop");
                 }
                 window::Action::Close => {

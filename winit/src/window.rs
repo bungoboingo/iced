@@ -5,7 +5,7 @@ use iced_native::window;
 pub use window::Id;
 pub use window::{Event, Mode};
 
-/// TODO(derezzedex)
+/// Spawns a new window.
 pub fn spawn<Message>(
     id: window::Id,
     settings: window::Settings,
@@ -16,7 +16,7 @@ pub fn spawn<Message>(
     ))
 }
 
-/// TODO(derezzedex)
+/// Closes the window.
 pub fn close<Message>(id: window::Id) -> Command<Message> {
     Command::single(command::Action::Window(id, window::Action::Close))
 }

@@ -5,12 +5,12 @@ use std::fmt;
 
 /// An operation to be performed on some window.
 pub enum Action<T> {
-    /// TODO(derezzedex)
+    /// Spawns a new window with the provided [`window::Settings`].
     Spawn {
-        /// TODO(derezzedex)
+        /// The settings of the [`Window`].
         settings: window::Settings,
     },
-    /// TODO(derezzedex)
+    /// Closes the current window.
     Close,
     /// Resize the window.
     Resize {
