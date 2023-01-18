@@ -197,7 +197,8 @@ where
         .map_err(Error::WindowCreationFailed)?;
 
     let windows: HashMap<window::Id, winit::window::Window> =
-        HashMap::from([(window::Id::new(0usize), window)]);
+        HashMap::from([(window::Id::MAIN, window)]);
+
     let window = windows.values().next().expect("No window found");
 
     #[cfg(target_arch = "wasm32")]
