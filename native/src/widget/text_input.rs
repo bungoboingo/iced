@@ -391,7 +391,7 @@ where
     let limits = limits
         .pad(padding)
         .width(width)
-        .height(Length::Units(text_size));
+        .height(Length::Units((text_size as f32 * 1.2) as u16));
 
     let mut text = layout::Node::new(limits.resolve(Size::ZERO));
     text.move_to(Point::new(padding.left.into(), padding.top.into()));
