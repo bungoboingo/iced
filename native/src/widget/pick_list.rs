@@ -398,7 +398,7 @@ where
     let size = {
         let intrinsic = Size::new(
             max_width as f32 + f32::from(text_size) + f32::from(padding.left),
-            f32::from(text_size),
+            f32::from(text_size) * 1.2,
         );
 
         limits.resolve(intrinsic).pad(padding)
@@ -615,12 +615,11 @@ pub fn draw<T, Renderer>(
             color: style.handle_color,
             bounds: Rectangle {
                 x: bounds.x + bounds.width - f32::from(padding.horizontal()),
-                y: bounds.center_y() - size / 2.0,
-                height: size,
+                y: bounds.center_y(),
                 ..bounds
             },
             horizontal_alignment: alignment::Horizontal::Right,
-            vertical_alignment: alignment::Vertical::Top,
+            vertical_alignment: alignment::Vertical::Center,
         });
     }
 
@@ -641,12 +640,12 @@ pub fn draw<T, Renderer>(
             },
             bounds: Rectangle {
                 x: bounds.x + f32::from(padding.left),
-                y: bounds.center_y() - text_size / 2.0,
+                y: bounds.center_y(),
                 width: bounds.width - f32::from(padding.horizontal()),
-                height: text_size,
+                ..bounds
             },
             horizontal_alignment: alignment::Horizontal::Left,
-            vertical_alignment: alignment::Vertical::Top,
+            vertical_alignment: alignment::Vertical::Center,
         });
     }
 }
