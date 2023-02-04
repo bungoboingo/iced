@@ -50,8 +50,8 @@ impl text::Renderer for Null {
         Font::SansSerif
     }
 
-    fn default_size(&self) -> u16 {
-        20
+    fn default_size(&self) -> f32 {
+        16.0
     }
 
     fn load_font(&mut self, _font: Cow<'static, [u8]>) {}
@@ -59,7 +59,7 @@ impl text::Renderer for Null {
     fn measure(
         &self,
         _content: &str,
-        _size: u16,
+        _size: f32,
         _font: Font,
         _bounds: Size,
     ) -> (f32, f32) {

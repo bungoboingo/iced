@@ -13,15 +13,15 @@ use crate::widget::container;
 use crate::widget::scrollable;
 use crate::widget::tree::{self, Tree};
 use crate::{
-    Clipboard, Element, Layout, Length, Padding, Point, Rectangle, Shell, Size,
-    Widget,
+    Clipboard, Element, Layout, Length, Padding, Pixels, Point, Rectangle,
+    Shell, Size, Widget,
 };
 use std::borrow::Cow;
 
 pub use iced_style::pick_list::{Appearance, StyleSheet};
 
 /// The handle to the right side of the [`PickList`].
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Handle<Renderer>
 where
     Renderer: text::Renderer,
@@ -31,7 +31,7 @@ where
     /// This is the default.
     Arrow {
         /// Font size of the content.
-        size: Option<u16>,
+        size: Option<f32>,
     },
     /// A custom handle.
     Custom {
@@ -40,7 +40,7 @@ where
         /// Text that will be shown.
         text: String,
         /// Font size of the content.
-        size: Option<u16>,
+        size: Option<f32>,
     },
     /// No handle will be shown.
     None,
@@ -61,19 +61,17 @@ where
 {
     fn content(
         &self,
-        renderer: &Renderer,
-    ) -> Option<(Renderer::Font, String, Option<u16>)> {
+        _renderer: &Renderer,
+    ) -> Option<(Option<Renderer::Font>, String, Option<f32>)> {
         match self {
             Self::Arrow { size } => Some((
-                Renderer::ICON_FONT,
+                Some(Renderer::ICON_FONT),
                 Renderer::ARROW_DOWN_ICON.to_string(),
                 *size,
             )),
-            Self::Custom { font, text, size } => Some((
-                font.unwrap_or_else(|| renderer.default_font()),
-                text.clone(),
-                *size,
-            )),
+            Self::Custom { font, text, size } => {
+                Some((*font, text.clone(), *size))
+            }
             Self::None => None,
         }
     }
@@ -93,7 +91,7 @@ where
     selected: Option<T>,
     width: Length,
     padding: Padding,
-    text_size: Option<u16>,
+    text_size: Option<f32>,
     font: Option<Renderer::Font>,
     handle: Handle<Renderer>,
     style: <Renderer::Theme as StyleSheet>::Style,
@@ -154,8 +152,8 @@ where
     }
 
     /// Sets the text size of the [`PickList`].
-    pub fn text_size(mut self, size: u16) -> Self {
-        self.text_size = Some(size);
+    pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(size.into().0);
         self
     }
 
@@ -222,7 +220,7 @@ where
             self.width,
             self.padding,
             self.text_size,
-            self.font.unwrap_or_else(|| renderer.default_font()),
+            self.font,
             self.placeholder.as_deref(),
             &self.options,
         )
@@ -361,8 +359,8 @@ pub fn layout<Renderer, T>(
     limits: &layout::Limits,
     width: Length,
     padding: Padding,
-    text_size: Option<u16>,
-    font: Renderer::Font,
+    text_size: Option<f32>,
+    font: Option<Renderer::Font>,
     placeholder: Option<&str>,
     options: &[T],
 ) -> layout::Node
@@ -373,7 +371,6 @@ where
     use std::f32;
 
     let limits = limits.width(width).height(Length::Shrink).pad(padding);
-
     let text_size = text_size.unwrap_or_else(|| renderer.default_size());
 
     let max_width = match width {
@@ -382,7 +379,7 @@ where
                 let (width, _) = renderer.measure(
                     label,
                     text_size,
-                    font,
+                    font.unwrap_or_else(|| renderer.default_font()),
                     Size::new(f32::INFINITY, f32::INFINITY),
                 );
 
@@ -533,7 +530,7 @@ pub fn overlay<'a, T, Message, Renderer>(
     layout: Layout<'_>,
     state: &'a mut State<T>,
     padding: Padding,
-    text_size: Option<u16>,
+    text_size: Option<f32>,
     font: Renderer::Font,
     options: &'a [T],
     style: <Renderer::Theme as StyleSheet>::Style,
@@ -580,7 +577,7 @@ pub fn draw<T, Renderer>(
     layout: Layout<'_>,
     cursor_position: Point,
     padding: Padding,
-    text_size: Option<u16>,
+    text_size: Option<f32>,
     font: Renderer::Font,
     placeholder: Option<&str>,
     selected: Option<&T>,
@@ -612,7 +609,8 @@ pub fn draw<T, Renderer>(
     );
 
     if let Some((font, text, size)) = handle.content(renderer) {
-        let size = f32::from(size.unwrap_or_else(|| renderer.default_size()));
+        let size = size.unwrap_or_else(|| renderer.default_size());
+        let font = font.unwrap_or_else(|| renderer.default_font());
 
         renderer.fill_text(Text {
             content: &text,

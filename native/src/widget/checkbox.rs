@@ -43,7 +43,7 @@ where
     width: Length,
     size: f32,
     spacing: u16,
-    text_size: Option<u16>,
+    text_size: Option<f32>,
     font: Option<Renderer::Font>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
@@ -103,8 +103,8 @@ where
     }
 
     /// Sets the text size of the [`Checkbox`].
-    pub fn text_size(mut self, text_size: u16) -> Self {
-        self.text_size = Some(text_size);
+    pub fn text_size(mut self, text_size: impl Into<Pixels>) -> Self {
+        self.text_size = Some(text_size.into().0);
         self
     }
 
@@ -258,7 +258,6 @@ where
 
         {
             let label_layout = children.next().unwrap();
-            let font = self.font.unwrap_or_else(|| renderer.default_font());
 
             widget::text::draw(
                 renderer,
@@ -266,7 +265,7 @@ where
                 label_layout,
                 &self.label,
                 self.text_size,
-                font,
+                self.font,
                 widget::text::Appearance {
                     color: custom_style.text_color,
                 },

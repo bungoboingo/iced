@@ -25,7 +25,7 @@ use crate::widget::operation::{self, Operation};
 use crate::widget::tree::{self, Tree};
 use crate::window;
 use crate::{
-    Clipboard, Color, Command, Element, Layout, Length, Padding, Point,
+    Clipboard, Color, Command, Element, Layout, Length, Padding, Pixels, Point,
     Rectangle, Shell, Size, Vector, Widget,
 };
 
@@ -64,7 +64,7 @@ where
     font: Option<Renderer::Font>,
     width: Length,
     padding: Padding,
-    size: Option<u16>,
+    size: Option<f32>,
     on_change: Box<dyn Fn(String) -> Message + 'a>,
     on_paste: Option<Box<dyn Fn(String) -> Message + 'a>>,
     on_submit: Option<Message>,
@@ -145,8 +145,8 @@ where
     }
 
     /// Sets the text size of the [`TextInput`].
-    pub fn size(mut self, size: u16) -> Self {
-        self.size = Some(size);
+    pub fn size(mut self, size: impl Into<Pixels>) -> Self {
+        self.size = Some(size.into().0);
         self
     }
 
@@ -179,8 +179,6 @@ where
         cursor_position: Point,
         value: Option<&Value>,
     ) {
-        let font = self.font.unwrap_or(renderer.default_font());
-
         draw(
             renderer,
             theme,
@@ -190,7 +188,7 @@ where
             value.unwrap_or(&self.value),
             &self.placeholder,
             self.size,
-            font,
+            self.font,
             self.is_secure,
             &self.style,
         )
@@ -260,7 +258,7 @@ where
             shell,
             &mut self.value,
             self.size,
-            self.font.unwrap_or(renderer.default_font()),
+            self.font,
             self.is_secure,
             self.on_change.as_ref(),
             self.on_paste.as_deref(),
@@ -279,8 +277,6 @@ where
         cursor_position: Point,
         _viewport: &Rectangle,
     ) {
-        let font = self.font.unwrap_or(renderer.default_font());
-
         draw(
             renderer,
             theme,
@@ -290,7 +286,7 @@ where
             &self.value,
             &self.placeholder,
             self.size,
-            font,
+            self.font,
             self.is_secure,
             &self.style,
         )
@@ -383,7 +379,7 @@ pub fn layout<Renderer>(
     limits: &layout::Limits,
     width: Length,
     padding: Padding,
-    size: Option<u16>,
+    size: Option<f32>,
 ) -> layout::Node
 where
     Renderer: text::Renderer,
@@ -413,8 +409,8 @@ pub fn update<'a, Message, Renderer>(
     clipboard: &mut dyn Clipboard,
     shell: &mut Shell<'_, Message>,
     value: &mut Value,
-    size: Option<u16>,
-    font: Renderer::Font,
+    size: Option<f32>,
+    font: Option<Renderer::Font>,
     is_secure: bool,
     on_change: &dyn Fn(String) -> Message,
     on_paste: Option<&dyn Fn(String) -> Message>,
@@ -819,8 +815,8 @@ pub fn draw<Renderer>(
     state: &State,
     value: &Value,
     placeholder: &str,
-    size: Option<u16>,
-    font: Renderer::Font,
+    size: Option<f32>,
+    font: Option<Renderer::Font>,
     is_secure: bool,
     style: &<Renderer::Theme as StyleSheet>::Style,
 ) where
@@ -854,6 +850,7 @@ pub fn draw<Renderer>(
     );
 
     let text = value.to_string();
+    let font = font.unwrap_or_else(|| renderer.default_font());
     let size = size.unwrap_or_else(|| renderer.default_size());
 
     let (cursor, offset) = if let Some(focus) = &state.is_focused {
@@ -1132,7 +1129,7 @@ fn offset<Renderer>(
     renderer: &Renderer,
     text_bounds: Rectangle,
     font: Renderer::Font,
-    size: u16,
+    size: f32,
     value: &Value,
     state: &State,
 ) -> f32
@@ -1166,7 +1163,7 @@ fn measure_cursor_and_scroll_offset<Renderer>(
     renderer: &Renderer,
     text_bounds: Rectangle,
     value: &Value,
-    size: u16,
+    size: f32,
     cursor_index: usize,
     font: Renderer::Font,
 ) -> (f32, f32)
@@ -1188,8 +1185,8 @@ where
 fn find_cursor_position<Renderer>(
     renderer: &Renderer,
     text_bounds: Rectangle,
-    font: Renderer::Font,
-    size: Option<u16>,
+    font: Option<Renderer::Font>,
+    size: Option<f32>,
     value: &Value,
     state: &State,
     x: f32,
@@ -1197,6 +1194,7 @@ fn find_cursor_position<Renderer>(
 where
     Renderer: text::Renderer,
 {
+    let font = font.unwrap_or_else(|| renderer.default_font());
     let size = size.unwrap_or_else(|| renderer.default_size());
 
     let offset = offset(renderer, text_bounds, font, size, value, state);

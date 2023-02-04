@@ -28,8 +28,8 @@ pub struct Settings<Flags> {
 
     /// The text size that will be used by default.
     ///
-    /// The default value is 16.
-    pub default_text_size: u16,
+    /// The default value is `16.0`.
+    pub default_text_size: f32,
 
     /// If set to true, the renderer will try to perform antialiasing for some
     /// primitives.
@@ -90,7 +90,7 @@ where
             window: Default::default(),
             flags: Default::default(),
             default_font: Font::SansSerif,
-            default_text_size: 16,
+            default_text_size: 16.0,
             antialiasing: false,
             exit_on_close_request: true,
             try_opengles_first: false,

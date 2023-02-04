@@ -30,7 +30,7 @@ pub struct Backend {
     image_pipeline: image::Pipeline,
 
     default_font: Font,
-    default_text_size: u16,
+    default_text_size: f32,
 }
 
 impl Backend {
@@ -204,7 +204,7 @@ impl backend::Text for Backend {
         self.default_font
     }
 
-    fn default_size(&self) -> u16 {
+    fn default_size(&self) -> f32 {
         self.default_text_size
     }
 

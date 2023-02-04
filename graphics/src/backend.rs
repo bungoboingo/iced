@@ -37,7 +37,7 @@ pub trait Text {
     fn default_font(&self) -> Font;
 
     /// Returns the default size of text.
-    fn default_size(&self) -> u16;
+    fn default_size(&self) -> f32;
 
     /// Measures the text contents with the given size and font,
     /// returning the size of a laid out paragraph that fits in the provided

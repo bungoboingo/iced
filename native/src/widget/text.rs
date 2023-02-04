@@ -4,7 +4,7 @@ use crate::layout;
 use crate::renderer;
 use crate::text;
 use crate::widget::Tree;
-use crate::{Element, Layout, Length, Point, Rectangle, Size, Widget};
+use crate::{Element, Layout, Length, Pixels, Point, Rectangle, Size, Widget};
 
 use std::borrow::Cow;
 
@@ -32,7 +32,7 @@ where
     Renderer::Theme: StyleSheet,
 {
     content: Cow<'a, str>,
-    size: Option<u16>,
+    size: Option<f32>,
     width: Length,
     height: Length,
     horizontal_alignment: alignment::Horizontal,
@@ -61,8 +61,8 @@ where
     }
 
     /// Sets the size of the [`Text`].
-    pub fn size(mut self, size: u16) -> Self {
-        self.size = Some(size);
+    pub fn size(mut self, size: impl Into<Pixels>) -> Self {
+        self.size = Some(size.into().0);
         self
     }
 
@@ -160,15 +160,13 @@ where
         _cursor_position: Point,
         _viewport: &Rectangle,
     ) {
-        let font = self.font.unwrap_or_else(|| renderer.default_font());
-
         draw(
             renderer,
             style,
             layout,
             &self.content,
             self.size,
-            font,
+            self.font,
             theme.appearance(self.style),
             self.horizontal_alignment,
             self.vertical_alignment,
@@ -191,8 +189,8 @@ pub fn draw<Renderer>(
     style: &renderer::Style,
     layout: Layout<'_>,
     content: &str,
-    size: Option<u16>,
-    font: Renderer::Font,
+    size: Option<f32>,
+    font: Option<Renderer::Font>,
     appearance: Appearance,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
@@ -215,10 +213,10 @@ pub fn draw<Renderer>(
 
     renderer.fill_text(crate::text::Text {
         content,
-        size: f32::from(size.unwrap_or_else(|| renderer.default_size())),
+        size: size.unwrap_or_else(|| renderer.default_size()),
         bounds: Rectangle { x, y, ..bounds },
         color: appearance.color.unwrap_or(style.text_color),
-        font,
+        font: font.unwrap_or_else(|| renderer.default_font()),
         horizontal_alignment,
         vertical_alignment,
     });
