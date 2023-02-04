@@ -53,7 +53,7 @@ where
     size: u16,
     spacing: u16,
     text_size: Option<u16>,
-    font: Renderer::Font,
+    font: Option<Renderer::Font>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
 
@@ -95,7 +95,7 @@ where
             size: Self::DEFAULT_SIZE,
             spacing: Self::DEFAULT_SPACING, //15
             text_size: None,
-            font: Default::default(),
+            font: None,
             style: Default::default(),
         }
     }
@@ -125,8 +125,8 @@ where
     }
 
     /// Sets the text font of the [`Radio`] button.
-    pub fn font(mut self, font: Renderer::Font) -> Self {
-        self.font = font;
+    pub fn font(mut self, font: impl Into<Renderer::Font>) -> Self {
+        self.font = Some(font.into());
         self
     }
 
@@ -272,6 +272,7 @@ where
 
         {
             let label_layout = children.next().unwrap();
+            let font = self.font.unwrap_or(renderer.default_font());
 
             widget::text::draw(
                 renderer,
@@ -279,7 +280,7 @@ where
                 label_layout,
                 &self.label,
                 self.text_size,
-                self.font.clone(),
+                font,
                 widget::text::Appearance {
                     color: custom_style.text_color,
                 },

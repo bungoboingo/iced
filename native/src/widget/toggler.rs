@@ -42,7 +42,7 @@ where
     text_size: Option<u16>,
     text_alignment: alignment::Horizontal,
     spacing: u16,
-    font: Renderer::Font,
+    font: Option<Renderer::Font>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
 
@@ -79,7 +79,7 @@ where
             text_size: None,
             text_alignment: alignment::Horizontal::Left,
             spacing: 0,
-            font: Renderer::Font::default(),
+            font: None,
             style: Default::default(),
         }
     }
@@ -117,8 +117,8 @@ where
     /// Sets the [`Font`] of the text of the [`Toggler`]
     ///
     /// [`Font`]: crate::text::Renderer::Font
-    pub fn font(mut self, font: Renderer::Font) -> Self {
-        self.font = font;
+    pub fn font(mut self, font: impl Into<Renderer::Font>) -> Self {
+        self.font = Some(font.into());
         self
     }
 
@@ -160,7 +160,7 @@ where
             row = row.push(
                 Text::new(label)
                     .horizontal_alignment(self.text_alignment)
-                    .font(self.font.clone())
+                    .font(self.font.unwrap_or_else(|| renderer.default_font()))
                     .width(self.width)
                     .size(
                         self.text_size
@@ -240,6 +240,7 @@ where
 
         if let Some(label) = &self.label {
             let label_layout = children.next().unwrap();
+            let font = self.font.unwrap_or_else(|| renderer.default_font());
 
             crate::widget::text::draw(
                 renderer,
@@ -247,7 +248,7 @@ where
                 label_layout,
                 label,
                 self.text_size,
-                self.font.clone(),
+                font,
                 Default::default(),
                 self.text_alignment,
                 alignment::Vertical::Center,

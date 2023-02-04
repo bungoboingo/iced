@@ -1,6 +1,8 @@
 //! Configure a renderer.
 pub use crate::Antialiasing;
 
+use crate::Font;
+
 /// The settings of a [`Backend`].
 ///
 /// [`Backend`]: crate::Backend
@@ -14,21 +16,13 @@ pub struct Settings {
     /// The internal graphics backend to use.
     pub internal_backend: wgpu::Backends,
 
-    /// The bytes of the font that will be used by default.
-    ///
-    /// If `None` is provided, a default system font will be chosen.
-    pub default_font: Option<&'static [u8]>,
+    /// The default [`Font`] to use.
+    pub default_font: Font,
 
     /// The default size of text.
     ///
     /// By default, it will be set to 20.
     pub default_text_size: u16,
-
-    /// If enabled, spread text workload in multiple threads when multiple cores
-    /// are available.
-    ///
-    /// By default, it is disabled.
-    pub text_multithreading: bool,
 
     /// The antialiasing strategy that will be used for triangle primitives.
     ///
@@ -65,9 +59,8 @@ impl Default for Settings {
         Settings {
             present_mode: wgpu::PresentMode::AutoVsync,
             internal_backend: wgpu::Backends::all(),
-            default_font: None,
+            default_font: Font::SansSerif,
             default_text_size: 20,
-            text_multithreading: false,
             antialiasing: None,
         }
     }

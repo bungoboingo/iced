@@ -36,7 +36,7 @@ where
     /// A custom handle.
     Custom {
         /// Font that will be used to display the `text`,
-        font: Renderer::Font,
+        font: Option<Renderer::Font>,
         /// Text that will be shown.
         text: String,
         /// Font size of the content.
@@ -59,16 +59,21 @@ impl<Renderer> Handle<Renderer>
 where
     Renderer: text::Renderer,
 {
-    fn content(&self) -> Option<(Renderer::Font, String, Option<u16>)> {
+    fn content(
+        &self,
+        renderer: &Renderer,
+    ) -> Option<(Renderer::Font, String, Option<u16>)> {
         match self {
             Self::Arrow { size } => Some((
                 Renderer::ICON_FONT,
                 Renderer::ARROW_DOWN_ICON.to_string(),
                 *size,
             )),
-            Self::Custom { font, text, size } => {
-                Some((font.clone(), text.clone(), *size))
-            }
+            Self::Custom { font, text, size } => Some((
+                font.unwrap_or_else(|| renderer.default_font()),
+                text.clone(),
+                *size,
+            )),
             Self::None => None,
         }
     }
@@ -89,7 +94,7 @@ where
     width: Length,
     padding: Padding,
     text_size: Option<u16>,
-    font: Renderer::Font,
+    font: Option<Renderer::Font>,
     handle: Handle<Renderer>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
@@ -124,7 +129,7 @@ where
             width: Length::Shrink,
             padding: Self::DEFAULT_PADDING,
             text_size: None,
-            font: Default::default(),
+            font: None,
             handle: Default::default(),
             style: Default::default(),
         }
@@ -155,8 +160,8 @@ where
     }
 
     /// Sets the font of the [`PickList`].
-    pub fn font(mut self, font: Renderer::Font) -> Self {
-        self.font = font;
+    pub fn font(mut self, font: impl Into<Renderer::Font>) -> Self {
+        self.font = Some(font.into());
         self
     }
 
@@ -217,7 +222,7 @@ where
             self.width,
             self.padding,
             self.text_size,
-            &self.font,
+            self.font.unwrap_or_else(|| renderer.default_font()),
             self.placeholder.as_deref(),
             &self.options,
         )
@@ -266,6 +271,7 @@ where
         cursor_position: Point,
         _viewport: &Rectangle,
     ) {
+        let font = self.font.unwrap_or_else(|| renderer.default_font());
         draw(
             renderer,
             theme,
@@ -273,7 +279,7 @@ where
             cursor_position,
             self.padding,
             self.text_size,
-            &self.font,
+            font,
             self.placeholder.as_deref(),
             self.selected.as_ref(),
             &self.handle,
@@ -285,7 +291,7 @@ where
         &'b mut self,
         tree: &'b mut Tree,
         layout: Layout<'_>,
-        _renderer: &Renderer,
+        renderer: &Renderer,
     ) -> Option<overlay::Element<'b, Message, Renderer>> {
         let state = tree.state.downcast_mut::<State<T>>();
 
@@ -294,7 +300,7 @@ where
             state,
             self.padding,
             self.text_size,
-            self.font.clone(),
+            self.font.unwrap_or_else(|| renderer.default_font()),
             &self.options,
             self.style.clone(),
         )
@@ -356,7 +362,7 @@ pub fn layout<Renderer, T>(
     width: Length,
     padding: Padding,
     text_size: Option<u16>,
-    font: &Renderer::Font,
+    font: Renderer::Font,
     placeholder: Option<&str>,
     options: &[T],
 ) -> layout::Node
@@ -376,7 +382,7 @@ where
                 let (width, _) = renderer.measure(
                     label,
                     text_size,
-                    font.clone(),
+                    font,
                     Size::new(f32::INFINITY, f32::INFINITY),
                 );
 
@@ -575,7 +581,7 @@ pub fn draw<T, Renderer>(
     cursor_position: Point,
     padding: Padding,
     text_size: Option<u16>,
-    font: &Renderer::Font,
+    font: Renderer::Font,
     placeholder: Option<&str>,
     selected: Option<&T>,
     handle: &Handle<Renderer>,
@@ -605,7 +611,7 @@ pub fn draw<T, Renderer>(
         style.background,
     );
 
-    if let Some((font, text, size)) = handle.content() {
+    if let Some((font, text, size)) = handle.content(renderer) {
         let size = f32::from(size.unwrap_or_else(|| renderer.default_size()));
 
         renderer.fill_text(Text {
@@ -632,7 +638,7 @@ pub fn draw<T, Renderer>(
         renderer.fill_text(Text {
             content: label,
             size: text_size,
-            font: font.clone(),
+            font,
             color: if is_selected {
                 style.text_color
             } else {
