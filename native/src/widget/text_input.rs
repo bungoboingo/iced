@@ -133,8 +133,8 @@ where
         self
     }
     /// Sets the width of the [`TextInput`].
-    pub fn width(mut self, width: Length) -> Self {
-        self.width = width;
+    pub fn width(mut self, width: impl Into<Length>) -> Self {
+        self.width = width.into();
         self
     }
 
@@ -395,7 +395,7 @@ where
     let limits = limits
         .pad(padding)
         .width(width)
-        .height(Length::Units((text_size as f32 * 1.2) as u16));
+        .height(text_size as f32 * 1.2);
 
     let mut text = layout::Node::new(limits.resolve(Size::ZERO));
     text.move_to(Point::new(padding.left.into(), padding.top.into()));
