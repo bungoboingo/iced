@@ -385,13 +385,8 @@ where
     Renderer: text::Renderer,
 {
     let text_size = size.unwrap_or_else(|| renderer.default_size());
-
     let padding = padding.fit(Size::ZERO, limits.max());
-
-    let limits = limits
-        .pad(padding)
-        .width(width)
-        .height(text_size as f32 * 1.2);
+    let limits = limits.pad(padding).width(width).height(text_size * 1.2);
 
     let mut text = layout::Node::new(limits.resolve(Size::ZERO));
     text.move_to(Point::new(padding.left.into(), padding.top.into()));
@@ -970,7 +965,7 @@ pub fn draw<Renderer>(
                 width: f32::INFINITY,
                 ..text_bounds
             },
-            size: f32::from(size),
+            size,
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Center,
         });
@@ -1202,7 +1197,7 @@ where
     renderer
         .hit_test(
             &value.to_string(),
-            size.into(),
+            size,
             font,
             Size::INFINITY,
             Point::new(x + offset, text_bounds.height / 2.0),

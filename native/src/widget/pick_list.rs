@@ -400,8 +400,8 @@ where
 
     let size = {
         let intrinsic = Size::new(
-            max_width as f32 + f32::from(text_size) + f32::from(padding.left),
-            f32::from(text_size) * 1.2,
+            max_width as f32 + text_size + f32::from(padding.left),
+            text_size * 1.2,
         );
 
         limits.resolve(intrinsic).pad(padding)
@@ -630,8 +630,7 @@ pub fn draw<T, Renderer>(
     let label = selected.map(ToString::to_string);
 
     if let Some(label) = label.as_deref().or(placeholder) {
-        let text_size =
-            f32::from(text_size.unwrap_or_else(|| renderer.default_size()));
+        let text_size = text_size.unwrap_or_else(|| renderer.default_size());
 
         renderer.fill_text(Text {
             content: label,

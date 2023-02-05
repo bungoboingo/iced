@@ -493,7 +493,7 @@ where
                     width: f32::INFINITY,
                     ..bounds
                 },
-                size: f32::from(text_size),
+                size: text_size,
                 font: self.font.unwrap_or_else(|| renderer.default_font()),
                 color: if is_selected {
                     appearance.selected_text_color

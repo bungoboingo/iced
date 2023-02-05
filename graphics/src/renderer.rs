@@ -146,8 +146,7 @@ where
         font: Font,
         bounds: Size,
     ) -> (f32, f32) {
-        self.backend()
-            .measure(content, f32::from(size), font, bounds)
+        self.backend().measure(content, size, font, bounds)
     }
 
     fn hit_test(
