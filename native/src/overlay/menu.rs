@@ -344,9 +344,8 @@ where
         let size = {
             let intrinsic = Size::new(
                 0.0,
-                text_size
-                    + f32::from(self.padding.vertical())
-                        * self.options.len() as f32,
+                (f32::from(self.padding.vertical()) + text_size * 1.2)
+                    * self.options.len() as f32,
             );
 
             limits.resolve(intrinsic)
@@ -387,7 +386,8 @@ where
 
                     *self.hovered_option = Some(
                         ((cursor_position.y - bounds.y)
-                            / (text_size + f32::from(self.padding.vertical())))
+                            / (text_size * 1.2
+                                + f32::from(self.padding.vertical())))
                             as usize,
                     );
                 }
@@ -402,7 +402,8 @@ where
 
                     *self.hovered_option = Some(
                         ((cursor_position.y - bounds.y)
-                            / (text_size + f32::from(self.padding.vertical())))
+                            / (text_size * 1.2
+                                + f32::from(self.padding.vertical())))
                             as usize,
                     );
 
@@ -452,7 +453,7 @@ where
         let text_size =
             self.text_size.unwrap_or_else(|| renderer.default_size());
         let option_height =
-            (text_size + f32::from(self.padding.vertical())) as usize;
+            (text_size * 1.2 + f32::from(self.padding.vertical())) as usize;
 
         let offset = viewport.y - bounds.y;
         let start = (offset / option_height as f32) as usize;
@@ -469,7 +470,7 @@ where
                 x: bounds.x,
                 y: bounds.y + (option_height * i) as f32,
                 width: bounds.width,
-                height: text_size + f32::from(self.padding.vertical()),
+                height: text_size * 1.2 + f32::from(self.padding.vertical()),
             };
 
             if is_selected {
