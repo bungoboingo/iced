@@ -1113,8 +1113,9 @@ impl Scrollbars {
 
             // Bounds of just the scrollbar
             let scrollbar_bounds = Rectangle {
-                x: bounds.x + bounds.width - total_scrollbar_width / 2.0
-                    + width / 2.0,
+                x: bounds.x + bounds.width
+                    - total_scrollbar_width / 2.0
+                    - width / 2.0,
                 y: bounds.y,
                 width,
                 height: (bounds.height - x_scrollbar_height).max(0.0),
@@ -1126,8 +1127,9 @@ impl Scrollbars {
             let scroller_offset = offset.y * ratio;
 
             let scroller_bounds = Rectangle {
-                x: bounds.x + bounds.width - total_scrollbar_width / 2.0
-                    + scroller_width / 2.0,
+                x: bounds.x + bounds.width
+                    - total_scrollbar_width / 2.0
+                    - scroller_width / 2.0,
                 y: (scrollbar_bounds.y + scroller_offset - x_scrollbar_height)
                     .max(0.0),
                 width: scroller_width,
@@ -1172,8 +1174,9 @@ impl Scrollbars {
             // Bounds of just the scrollbar
             let scrollbar_bounds = Rectangle {
                 x: bounds.x,
-                y: bounds.y + bounds.height - total_scrollbar_height / 2.0
-                    + width / 2.0,
+                y: bounds.y + bounds.height
+                    - total_scrollbar_height / 2.0
+                    - width / 2.0,
                 width: (bounds.width - scrollbar_y_width).max(0.0),
                 height: width,
             };
@@ -1186,9 +1189,9 @@ impl Scrollbars {
             let scroller_bounds = Rectangle {
                 x: (scrollbar_bounds.x + scroller_offset - scrollbar_y_width)
                     .max(0.0),
-                y: bounds.y + bounds.height - total_scrollbar_height / 2.0
-                    + scroller_width / 2.0,
-
+                y: bounds.y + bounds.height
+                    - total_scrollbar_height / 2.0
+                    - scroller_width / 2.0,
                 width: scroller_length,
                 height: scroller_width,
             };
