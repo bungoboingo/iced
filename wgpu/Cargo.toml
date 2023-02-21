@@ -25,6 +25,7 @@ canvas = ["iced_graphics/canvas"]
 qr_code = ["iced_graphics/qr_code"]
 spirv = ["wgpu/spirv"]
 webgl = ["wgpu/webgl"]
+custom_pipelines = []
 
 [dependencies]
 wgpu = "0.14"

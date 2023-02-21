@@ -13,6 +13,9 @@ use tracing::info_span;
 #[cfg(any(feature = "image", feature = "svg"))]
 use crate::image;
 
+#[cfg(feature = "custom_pipelines")]
+use crate::custom;
+
 use std::borrow::Cow;
 
 /// A [`wgpu`] graphics backend for [`iced`].
@@ -24,10 +27,10 @@ pub struct Backend {
     quad_pipeline: quad::Pipeline,
     text_pipeline: text::Pipeline,
     triangle_pipeline: triangle::Pipeline,
-
     #[cfg(any(feature = "image", feature = "svg"))]
     image_pipeline: image::Pipeline,
-
+    #[cfg(feature = "custom_pipelines")]
+    custom: custom::Pipelines,
     default_font: Font,
     default_text_size: f32,
 }

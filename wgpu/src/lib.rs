@@ -61,6 +61,8 @@ use iced_graphics::Transformation;
 
 #[cfg(any(feature = "image", feature = "svg"))]
 mod image;
+#[cfg(feature = "custom_pipelines")]
+mod custom;
 
 /// A [`wgpu`] graphics renderer for [`iced`].
 ///
