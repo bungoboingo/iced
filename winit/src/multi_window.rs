@@ -140,6 +140,7 @@ where
     /// while a scale factor of `0.5` will shrink them to half their size.
     ///
     /// By default, it returns `1.0`.
+    #[allow(unused_variables)]
     fn scale_factor(&self, window: window::Id) -> f64 {
         1.0
     }
@@ -459,14 +460,16 @@ async fn run_instance<A, E, C>(
                             || compositor.fetch_information(),
                         );
 
-                        // Update window
-                        state.synchronize(
-                            &application,
-                            id,
-                            windows.get(&id).expect("No window found with ID."),
-                        );
-
-                        let should_exit = application.should_exit();
+                        // synchronize window states with application states.
+                        for (id, state) in states.iter_mut() {
+                            state.synchronize(
+                                &application,
+                                *id,
+                                windows
+                                    .get(id)
+                                    .expect("No window found with ID."),
+                            );
+                        }
 
                         interfaces = ManuallyDrop::new(build_user_interfaces(
                             &application,
@@ -476,7 +479,7 @@ async fn run_instance<A, E, C>(
                             pure_states,
                         ));
 
-                        if should_exit {
+                        if application.should_exit() {
                             break 'main;
                         }
                     }

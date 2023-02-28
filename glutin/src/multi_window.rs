@@ -507,12 +507,16 @@ async fn run_instance<A, E, C>(
                             || compositor.fetch_information(),
                         );
 
-                        // Update window
-                        state.synchronize(
-                            &application,
-                            id,
-                            windows.get(&id).expect("No window found with ID."),
-                        );
+                        // synchronize window states with application states.
+                        for (id, state) in states.iter_mut() {
+                            state.synchronize(
+                                &application,
+                                *id,
+                                windows
+                                    .get(id)
+                                    .expect("No window found with ID."),
+                            );
+                        }
 
                         let should_exit = application.should_exit();
 
