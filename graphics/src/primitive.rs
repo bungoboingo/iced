@@ -8,9 +8,10 @@ use crate::triangle;
 use std::sync::Arc;
 
 /// A rendering primitive.
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub enum Primitive {
     /// An empty primitive
+    #[default]
     None,
     /// A group of primitives
     Group {
@@ -112,10 +113,4 @@ pub enum Primitive {
         /// The cached primitive
         cache: Arc<Primitive>,
     },
-}
-
-impl Default for Primitive {
-    fn default() -> Primitive {
-        Primitive::None
-    }
 }
