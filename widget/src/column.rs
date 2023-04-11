@@ -148,7 +148,7 @@ where
         renderer: &Renderer,
         operation: &mut dyn Operation<Message>,
     ) {
-        operation.container(None, &mut |operation| {
+        operation.container(None, layout, &mut |operation| {
             self.children
                 .iter()
                 .zip(&mut tree.children)

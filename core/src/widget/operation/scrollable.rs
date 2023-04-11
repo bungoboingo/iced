@@ -1,4 +1,5 @@
 //! Operate on widgets that can be scrolled.
+use crate::Layout;
 use crate::widget::{Id, Operation};
 
 /// The internal state of a widget that can be scrolled.
@@ -22,6 +23,7 @@ pub fn snap_to<T>(target: Id, offset: RelativeOffset) -> impl Operation<T> {
         fn container(
             &mut self,
             _id: Option<&Id>,
+            _layout: Layout<'_>,
             operate_on_children: &mut dyn FnMut(&mut dyn Operation<T>),
         ) {
             operate_on_children(self)
@@ -49,6 +51,7 @@ pub fn scroll_to<T>(target: Id, offset: AbsoluteOffset) -> impl Operation<T> {
         fn container(
             &mut self,
             _id: Option<&Id>,
+            _layout: Layout<'_>,
             operate_on_children: &mut dyn FnMut(&mut dyn Operation<T>),
         ) {
             operate_on_children(self)

@@ -206,6 +206,7 @@ where
 
         operation.container(
             self.id.as_ref().map(|id| &id.0),
+            layout,
             &mut |operation| {
                 self.content.as_widget().operate(
                     &mut tree.children[0],

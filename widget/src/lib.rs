@@ -119,8 +119,18 @@ pub use canvas::Canvas;
 #[cfg(feature = "qr_code")]
 pub mod qr_code;
 
+use crate::core::{widget, Rectangle};
 #[cfg(feature = "qr_code")]
 #[doc(no_inline)]
 pub use qr_code::QRCode;
 
 type Renderer<Theme = style::Theme> = renderer::Renderer<Theme>;
+
+/// Returns the absolute bounds of the [`Widget`].
+pub fn bounds<Message: 'static>(
+    id: container::Id,
+    f: fn(Rectangle) -> Message,
+) -> runtime::Command<Message> {
+    runtime::Command::widget(widget::operation::bounds(id.0))
+        .map(move |bounds| f(bounds))
+}

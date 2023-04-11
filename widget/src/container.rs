@@ -180,6 +180,7 @@ where
     ) {
         operation.container(
             self.id.as_ref().map(|id| &id.0),
+            layout,
             &mut |operation| {
                 self.content.as_widget().operate(
                     &mut tree.children[0],
@@ -345,7 +346,7 @@ pub fn draw_background<Renderer>(
 
 /// The identifier of a [`Container`].
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct Id(widget::Id);
+pub struct Id(pub(crate) widget::Id);
 
 impl Id {
     /// Creates a custom [`Id`].

@@ -327,11 +327,12 @@ where
             fn container(
                 &mut self,
                 id: Option<&widget::Id>,
+                layout: Layout<'_>,
                 operate_on_children: &mut dyn FnMut(
                     &mut dyn widget::Operation<T>,
                 ),
             ) {
-                self.operation.container(id, &mut |operation| {
+                self.operation.container(id, layout, &mut |operation| {
                     operate_on_children(&mut MapOperation { operation });
                 });
             }

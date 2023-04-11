@@ -2,16 +2,19 @@
 pub mod focusable;
 pub mod scrollable;
 pub mod text_input;
+mod bounds;
 
 pub use focusable::Focusable;
 pub use scrollable::Scrollable;
 pub use text_input::TextInput;
+pub use bounds::bounds;
 
 use crate::widget::Id;
 
 use std::any::Any;
 use std::fmt;
 use std::rc::Rc;
+use crate::Layout;
 
 /// A piece of logic that can traverse the widget tree of an application in
 /// order to query or update some widget state.
@@ -23,6 +26,7 @@ pub trait Operation<T> {
     fn container(
         &mut self,
         id: Option<&Id>,
+        _layout: Layout<'_>,
         operate_on_children: &mut dyn FnMut(&mut dyn Operation<T>),
     );
 
@@ -92,6 +96,7 @@ where
         fn container(
             &mut self,
             id: Option<&Id>,
+            layout: Layout<'_>,
             operate_on_children: &mut dyn FnMut(&mut dyn Operation<B>),
         ) {
             struct MapRef<'a, A> {
@@ -102,11 +107,12 @@ where
                 fn container(
                     &mut self,
                     id: Option<&Id>,
+                    layout: Layout<'_>,
                     operate_on_children: &mut dyn FnMut(&mut dyn Operation<B>),
                 ) {
                     let Self { operation, .. } = self;
 
-                    operation.container(id, &mut |operation| {
+                    operation.container(id, layout, &mut |operation| {
                         operate_on_children(&mut MapRef { operation });
                     });
                 }
@@ -145,7 +151,7 @@ where
             MapRef {
                 operation: operation.as_mut(),
             }
-            .container(id, operate_on_children);
+            .container(id, layout, operate_on_children);
         }
 
         fn focusable(&mut self, state: &mut dyn Focusable, id: Option<&Id>) {
@@ -197,6 +203,7 @@ pub fn scope<T: 'static>(
         fn container(
             &mut self,
             id: Option<&Id>,
+            _layout: Layout<'_>,
             operate_on_children: &mut dyn FnMut(&mut dyn Operation<Message>),
         ) {
             if id == Some(&self.target) {
