@@ -31,11 +31,15 @@ pub mod compositor;
 pub mod primitive;
 pub mod renderer;
 
+#[cfg(feature = "wgpu")]
+pub mod custom;
+
 #[cfg(feature = "geometry")]
 pub mod geometry;
 
 #[cfg(feature = "image")]
 pub mod image;
+
 
 pub use antialiasing::Antialiasing;
 pub use backend::Backend;

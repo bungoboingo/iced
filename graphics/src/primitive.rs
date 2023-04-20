@@ -127,6 +127,10 @@ pub enum Primitive {
         /// The cached primitive
         content: Arc<Primitive>,
     },
+    #[cfg(feature = "wgpu")]
+    Custom {
+        content: fn(&mut wgpu::RenderPass<'_>)
+    }
 }
 
 impl Primitive {
