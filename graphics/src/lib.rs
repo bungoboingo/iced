@@ -40,7 +40,6 @@ pub mod geometry;
 #[cfg(feature = "image")]
 pub mod image;
 
-
 pub use antialiasing::Antialiasing;
 pub use backend::Backend;
 pub use compositor::Compositor;

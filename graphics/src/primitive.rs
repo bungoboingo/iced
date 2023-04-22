@@ -1,7 +1,9 @@
+use std::any::Any;
 use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
 use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
+use std::fmt::{Debug, Formatter};
 
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
@@ -128,9 +130,28 @@ pub enum Primitive {
         content: Arc<Primitive>,
     },
     #[cfg(feature = "wgpu")]
-    Custom {
-        content: fn(&mut wgpu::RenderPass<'_>)
+    Custom(Custom),
+}
+
+//todo cfg module
+#[cfg(feature = "wgpu")]
+#[derive(Clone)]
+pub struct Custom {
+    pub draw: fn(&mut wgpu::RenderPass<'_>, Box<dyn Any>),
+}
+
+#[cfg(feature = "wgpu")]
+impl Debug for Custom {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Custom Primitive.")
     }
+}
+
+#[cfg(feature = "wgpu")]
+pub fn custom(
+    draw: fn(&mut wgpu::RenderPass<'_>, Box<dyn Any>),
+) -> Primitive {
+    Primitive::Custom(Custom { draw })
 }
 
 impl Primitive {

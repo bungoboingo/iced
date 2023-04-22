@@ -1,6 +1,6 @@
 use crate::custom::cursor::Cursor;
 use crate::custom::event::Event;
-use crate::{Primitive, Transformation};
+use crate::{primitive, Primitive, Transformation};
 use iced_core::{event, Rectangle};
 use iced_core::{mouse, Color, Size};
 use wgpu::{CommandEncoder, Device, Queue, TextureView};
@@ -11,7 +11,7 @@ where
     Renderer: iced_core::Renderer,
 {
     /// The internal state mutated by the [`Program`].
-    type State: Default;
+    type State: Default + 'static;
 
     /// Updates the [`State`] of the [`Program`].
     ///
@@ -30,36 +30,20 @@ where
         (event::Status::Ignored, None)
     }
 
-    fn prepare(
-        &self,
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
-        scale_factor: f32,
-        transformation: Transformation,
-        primitives: &[Primitive],
-    );
-
-    /// Draws the state of the [`Program`], producing a custom primitive.
+    /// Draws the state of the [`Program`] directly to a [`wgpu::RenderPipeline`].
     fn draw(
         &self,
         state: &Self::State,
-        renderer: &Renderer,
+        renderer: &mut Renderer,
         theme: &Renderer::Theme,
         bounds: Rectangle,
         cursor: Cursor,
-    ) -> Primitive;
-
-    /// Renders the custom `Primitive`s.
-    fn render(
-        &self,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        clear_color: Option<Color>,
-        scale_factor: f32,
-        target_size: Size<u32>,
-        primitives: &[Primitive],
+        // device: &wgpu::Device,
+        // encoder: &mut wgpu::CommandEncoder,
+        // target: &wgpu::TextureView,
+        // clear_color: Option<Color>,
+        // scale_factor: f32,
+        // target_size: Size<u32>,
     );
 
     fn mouse_interaction(
@@ -89,57 +73,22 @@ where
         T::update(self, state, event, bounds, cursor)
     }
 
-    fn render(
-        &self,
-        device: &Device,
-        encoder: &mut CommandEncoder,
-        target: &TextureView,
-        clear_color: Option<Color>,
-        scale_factor: f32,
-        target_size: Size<u32>,
-        primitives: &[Primitive],
-    ) {
-        T::render(
-            self,
-            device,
-            encoder,
-            target,
-            clear_color,
-            scale_factor,
-            target_size,
-            primitives,
-        )
-    }
-
-    fn prepare(
-        &self,
-        device: &Device,
-        queue: &Queue,
-        encoder: &mut CommandEncoder,
-        scale_factor: f32,
-        transformation: Transformation,
-        primitives: &[Primitive],
-    ) {
-        T::prepare(
-            self,
-            device,
-            queue,
-            encoder,
-            scale_factor,
-            transformation,
-            primitives,
-        )
-    }
-
     fn draw(
         &self,
         state: &Self::State,
-        renderer: &Renderer,
+        renderer: &mut Renderer,
         theme: &Renderer::Theme,
         bounds: Rectangle,
         cursor: Cursor,
-    ) -> Primitive {
-        T::draw(self, state, renderer, theme, bounds, cursor)
+    ) {
+        T::draw(
+            self,
+            state,
+            renderer,
+            theme,
+            bounds,
+            cursor,
+        )
     }
 
     fn mouse_interaction(

@@ -8,13 +8,15 @@ use crate::core::widget::{tree, Tree};
 use crate::core::{
     layout, Clipboard, Layout, Length, Point, Rectangle, Shell, Size, Widget,
 };
-use crate::custom::cursor::Cursor;
-use crate::custom::event::Event;
 use crate::{Backend, Renderer};
-use iced_core::Vector;
+
+pub use cursor::Cursor;
+pub use event::Event;
+use iced_core::Element;
 pub use program::Program;
 
 /// A widget for rendering custom shaders.
+#[derive(Debug)]
 pub struct Shader<P> {
     width: Length,
     height: Length,
@@ -87,11 +89,7 @@ where
         let cursor = Cursor::from_window_position(cursor_position);
         let state = tree.state.downcast_ref::<P::State>();
 
-        renderer.with_translation(Vector::new(bounds.x, bounds.y), |renderer| {
-            renderer.draw_primitive(
-                self.program.draw(state, renderer, theme, bounds, cursor),
-            )
-        })
+        self.program.draw(state, renderer, theme, bounds, cursor)
     }
 
     fn tag(&self) -> tree::Tag {
@@ -144,5 +142,17 @@ where
         }
 
         Status::Ignored
+    }
+}
+
+impl<'a, P, B, Theme, Message> From<Shader<P>>
+    for Element<'a, Message, Renderer<B, Theme>>
+where
+    Message: 'a,
+    P: Program<Message, Renderer<B, Theme>> + 'a,
+    B: Backend,
+{
+    fn from(shader: Shader<P>) -> Element<'a, Message, Renderer<B, Theme>> {
+        Element::new(shader)
     }
 }
