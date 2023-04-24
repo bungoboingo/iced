@@ -1,9 +1,9 @@
 use crate::custom::cursor::Cursor;
 use crate::custom::event::Event;
-use crate::{primitive, Primitive, Transformation};
+use crate::{Primitive, Transformation};
 use iced_core::{event, Rectangle};
 use iced_core::{mouse, Color, Size};
-use wgpu::{CommandEncoder, Device, Queue, TextureView};
+use wgpu::{Device, Queue, TextureView};
 
 /// The state & logic of a [`CustomShader`] widget.
 pub trait Program<Message, Renderer>
@@ -11,7 +11,7 @@ where
     Renderer: iced_core::Renderer,
 {
     /// The internal state mutated by the [`Program`].
-    type State: Default + 'static;
+    type State: Default + Renderable + 'static;
 
     /// Updates the [`State`] of the [`Program`].
     ///
@@ -38,12 +38,6 @@ where
         theme: &Renderer::Theme,
         bounds: Rectangle,
         cursor: Cursor,
-        // device: &wgpu::Device,
-        // encoder: &mut wgpu::CommandEncoder,
-        // target: &wgpu::TextureView,
-        // clear_color: Option<Color>,
-        // scale_factor: f32,
-        // target_size: Size<u32>,
     );
 
     fn mouse_interaction(
@@ -81,14 +75,7 @@ where
         bounds: Rectangle,
         cursor: Cursor,
     ) {
-        T::draw(
-            self,
-            state,
-            renderer,
-            theme,
-            bounds,
-            cursor,
-        )
+        T::draw(self, state, renderer, theme, bounds, cursor)
     }
 
     fn mouse_interaction(
@@ -99,4 +86,31 @@ where
     ) -> mouse::Interaction {
         T::mouse_interaction(self, state, bounds, cursor)
     }
+}
+
+pub trait Renderable {
+    /// Initializes the [`Renderable`].
+    fn init(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat);
+
+    /// Prepares the [`Renderable`] to be rendered.
+    fn prepare(
+        &mut self,
+        _device: &wgpu::Device,
+        _queue: &wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        _scale_factor: f32,
+        _transformation: Transformation,
+    );
+
+    /// Renders the [`Renderable`].
+    fn render(
+        &self,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
+        target: &wgpu::TextureView,
+        clear_color: Option<Color>,
+        scale_factor: f32,
+        target_size: Size<u32>,
+    );
 }
