@@ -13,10 +13,9 @@ use tracing::info_span;
 #[cfg(any(feature = "image", feature = "svg"))]
 use crate::image;
 
+use iced_graphics::primitive::Renderable;
 use std::borrow::Cow;
 use std::collections::HashMap;
-use std::hash::Hash;
-use iced_graphics::primitive::{CustomPipeline, Renderable};
 
 pub(crate) type Pipelines = HashMap<u64, Box<dyn Renderable + 'static>>;
 
@@ -80,6 +79,7 @@ impl Backend {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         clear_color: Option<Color>,
+        format: wgpu::TextureFormat,
         frame: &wgpu::TextureView,
         primitives: &[Primitive],
         viewport: &Viewport,
@@ -93,7 +93,8 @@ impl Backend {
         let scale_factor = viewport.scale_factor() as f32;
         let transformation = viewport.projection();
 
-        let mut layers = Layer::generate(primitives, &mut self.pipelines, viewport);
+        let mut layers =
+            Layer::generate(primitives, device, format, &mut self.pipelines, viewport);
         layers.push(Layer::overlay(overlay_text, viewport));
 
         self.prepare(
@@ -140,23 +141,25 @@ impl Backend {
         layers: &[Layer<'_>],
     ) -> bool {
         for layer in layers {
-            let bounds = (layer.bounds * scale_factor).snap();
+            if let Layer::Iced { text, .. } = layer {
+                let bounds = (layer.bounds() * scale_factor).snap();
 
-            if bounds.width < 1 || bounds.height < 1 {
-                continue;
-            }
+                if bounds.width < 1 || bounds.height < 1 {
+                    continue;
+                }
 
-            if !layer.text.is_empty()
-                && !self.text_pipeline.prepare(
-                    device,
-                    queue,
-                    &layer.text,
-                    layer.bounds,
-                    scale_factor,
-                    target_size,
-                )
-            {
-                return false;
+                if !text.is_empty()
+                    && !self.text_pipeline.prepare(
+                        device,
+                        queue,
+                        &text,
+                        layer.bounds(),
+                        scale_factor,
+                        target_size,
+                    )
+                {
+                    return false;
+                }
             }
         }
 
@@ -167,54 +170,70 @@ impl Backend {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
+        encoder: &mut wgpu::CommandEncoder,
         scale_factor: f32,
         transformation: Transformation,
         layers: &[Layer<'_>],
     ) {
         for layer in layers {
-            let bounds = (layer.bounds * scale_factor).snap();
+            let bounds = (layer.bounds() * scale_factor).snap();
 
             if bounds.width < 1 || bounds.height < 1 {
                 continue;
             }
 
-            if !layer.quads.is_empty() {
-                self.quad_pipeline.prepare(
-                    device,
-                    queue,
-                    &layer.quads,
-                    transformation,
-                    scale_factor,
-                );
-            }
+            match layer {
+                Layer::Iced {
+                    quads,
+                    meshes,
+                    images,
+                    ..
+                } => {
+                    if !quads.is_empty() {
+                        self.quad_pipeline.prepare(
+                            device,
+                            queue,
+                            &quads,
+                            transformation,
+                            scale_factor,
+                        );
+                    }
 
-            if !layer.meshes.is_empty() {
-                let scaled = transformation
-                    * Transformation::scale(scale_factor, scale_factor);
+                    if !meshes.is_empty() {
+                        let scaled = transformation
+                            * Transformation::scale(scale_factor, scale_factor);
 
-                self.triangle_pipeline.prepare(
-                    device,
-                    queue,
-                    &layer.meshes,
-                    scaled,
-                );
-            }
+                        self.triangle_pipeline
+                            .prepare(device, queue, &meshes, scaled);
+                    }
 
-            #[cfg(any(feature = "image", feature = "svg"))]
-            {
-                if !layer.images.is_empty() {
-                    let scaled = transformation
-                        * Transformation::scale(scale_factor, scale_factor);
+                    #[cfg(any(feature = "image", feature = "svg"))]
+                    {
+                        if !images.is_empty() {
+                            let scaled = transformation
+                                * Transformation::scale(scale_factor, scale_factor);
 
-                    self.image_pipeline.prepare(
-                        device,
-                        queue,
-                        _encoder,
-                        &layer.images,
-                        scaled,
-                        scale_factor,
-                    );
+                            self.image_pipeline.prepare(
+                                device,
+                                queue,
+                                encoder,
+                                &images,
+                                scaled,
+                                scale_factor,
+                            );
+                        }
+                    }
+                }
+                Layer::Custom { id, .. } => { //TODO bounds..?
+                    if let Some(renderable) = self.pipelines.get(id) {
+                        renderable.prepare(
+                            device,
+                            queue,
+                            encoder,
+                            scale_factor,
+                            transformation
+                        );
+                    }
                 }
             }
         }
@@ -267,70 +286,100 @@ impl Backend {
         ));
 
         for layer in layers {
-            let bounds = (layer.bounds * scale_factor).snap();
+            let bounds = (layer.bounds() * scale_factor).snap();
 
             if bounds.width < 1 || bounds.height < 1 {
                 return;
             }
 
-            if !layer.quads.is_empty() {
-                self.quad_pipeline
-                    .render(quad_layer, bounds, &mut render_pass);
+            match layer {
+                Layer::Iced {
+                    quads,
+                    meshes,
+                    text,
+                    images,
+                    ..
+                } => {
+                    if !quads.is_empty() {
+                        self.quad_pipeline.render(
+                            quad_layer,
+                            bounds,
+                            &mut render_pass,
+                        );
 
-                quad_layer += 1;
-            }
+                        quad_layer += 1;
+                    }
 
-            if !layer.meshes.is_empty() {
-                let _ = ManuallyDrop::into_inner(render_pass);
+                    if !meshes.is_empty() {
+                        let _ = ManuallyDrop::into_inner(render_pass);
 
-                self.triangle_pipeline.render(
-                    device,
-                    encoder,
-                    target,
-                    triangle_layer,
-                    target_size,
-                    &layer.meshes,
-                    scale_factor,
-                );
+                        self.triangle_pipeline.render(
+                            device,
+                            encoder,
+                            target,
+                            triangle_layer,
+                            target_size,
+                            &meshes,
+                            scale_factor,
+                        );
 
-                triangle_layer += 1;
+                        triangle_layer += 1;
 
-                render_pass = ManuallyDrop::new(encoder.begin_render_pass(
-                    &wgpu::RenderPassDescriptor {
-                        label: Some("iced_wgpu::quad render pass"),
-                        color_attachments: &[Some(
-                            wgpu::RenderPassColorAttachment {
-                                view: target,
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Load,
-                                    store: true,
+                        render_pass =
+                            ManuallyDrop::new(encoder.begin_render_pass(
+                                &wgpu::RenderPassDescriptor {
+                                    label: Some("iced_wgpu::quad render pass"),
+                                    color_attachments: &[Some(
+                                        wgpu::RenderPassColorAttachment {
+                                            view: target,
+                                            resolve_target: None,
+                                            ops: wgpu::Operations {
+                                                load: wgpu::LoadOp::Load,
+                                                store: true,
+                                            },
+                                        },
+                                    )],
+                                    depth_stencil_attachment: None,
                                 },
-                            },
-                        )],
-                        depth_stencil_attachment: None,
-                    },
-                ));
-            }
+                            ));
+                    }
 
-            #[cfg(any(feature = "image", feature = "svg"))]
-            {
-                if !layer.images.is_empty() {
-                    self.image_pipeline.render(
-                        image_layer,
-                        bounds,
-                        &mut render_pass,
-                    );
+                    #[cfg(any(feature = "image", feature = "svg"))]
+                    {
+                        if !images.is_empty() {
+                            self.image_pipeline.render(
+                                image_layer,
+                                bounds,
+                                &mut render_pass,
+                            );
 
-                    image_layer += 1;
+                            image_layer += 1;
+                        }
+                    }
+
+                    if !text.is_empty() {
+                        self.text_pipeline.render(
+                            text_layer,
+                            bounds,
+                            &mut render_pass,
+                        );
+
+                        text_layer += 1;
+                    }
                 }
-            }
-
-            if !layer.text.is_empty() {
-                self.text_pipeline
-                    .render(text_layer, bounds, &mut render_pass);
-
-                text_layer += 1;
+                Layer::Custom { id, .. } => {
+                    if let Some(renderable) = self.pipelines.get(id) {
+                        renderable.render(
+                            &mut render_pass,
+                            device,
+                            encoder,
+                            target,
+                            clear_color,
+                            scale_factor,
+                            target_size,
+                        );
+                    }
+                }
             }
         }
 

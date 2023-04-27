@@ -1,4 +1,3 @@
-use std::any::Any;
 use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
@@ -15,9 +14,8 @@ use std::sync::Arc;
 pub trait Renderable {
     fn prepare(
         &self,
-        _render_pass: &mut wgpu::RenderPass<'_>,
         _device: &wgpu::Device,
-        _queue: &mut wgpu::Queue,
+        _queue: &wgpu::Queue,
         _encoder: &mut wgpu::CommandEncoder,
         _scale_factor: f32,
         _transformation: Transformation,
@@ -184,8 +182,8 @@ pub enum Primitive {
     },
     #[cfg(feature = "wgpu")]
     Custom {
+        bounds: Rectangle,
         pipeline: CustomPipeline,
-        data: Box<dyn Any>,
     },
 }
 
@@ -215,10 +213,10 @@ impl Primitive {
     }
 
     #[cfg(feature = "wgpu")]
-    pub fn custom<T>(pipeline: CustomPipeline, data: T) -> Self {
+    pub fn custom(bounds: Rectangle, pipeline: CustomPipeline) -> Self {
         Self::Custom {
+            bounds,
             pipeline,
-            data: Box::new(data),
         }
     }
 }

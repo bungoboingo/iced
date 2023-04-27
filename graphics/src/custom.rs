@@ -61,7 +61,7 @@ where
 
     fn layout(
         &self,
-        renderer: &Renderer<B, Theme>,
+        _renderer: &Renderer<B, Theme>,
         limits: &layout::Limits,
     ) -> layout::Node {
         let limits = limits.width(self.width).height(self.height);
@@ -75,10 +75,10 @@ where
         tree: &Tree,
         renderer: &mut Renderer<B, Theme>,
         theme: &Theme,
-        style: &Style,
+        _style: &Style,
         layout: Layout<'_>,
         cursor_position: Point,
-        viewport: &Rectangle,
+        _viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
 

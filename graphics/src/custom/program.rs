@@ -1,9 +1,7 @@
 use crate::custom::cursor::Cursor;
 use crate::custom::event::Event;
-use crate::Transformation;
 use iced_core::{event, Rectangle};
-use iced_core::{mouse, Size};
-use wgpu::{Queue, TextureView};
+use iced_core::mouse;
 
 /// The state & logic of a [`CustomShader`] widget.
 pub trait Program<Message, Renderer>

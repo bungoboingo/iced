@@ -8,16 +8,25 @@ use iced_graphics::{Primitive, Transformation};
 use wgpu::util::DeviceExt;
 
 pub struct Cubes {
-    id: u64,
+    pub id: u64,
 }
 
+impl Cubes {
+    pub fn new() -> Self {
+        Cubes {
+            id: 0,
+        }
+    }
+}
+
+//TODO can I just consolidate this with the Cubes struct?
 pub struct State {
     pipeline: wgpu::RenderPipeline,
     vertices: wgpu::Buffer,
     indices: wgpu::Buffer,
     uniforms: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
-    primitives: Vec<Cube>,
+    primitives: Vec<Cube>, //TODO how to update this....
 }
 
 impl State {
@@ -163,9 +172,8 @@ impl State {
 impl Renderable for State {
     fn prepare(
         &self,
-        _render_pass: &mut wgpu::RenderPass<'_>,
         _device: &wgpu::Device,
-        queue: &mut wgpu::Queue,
+        queue: &wgpu::Queue,
         _encoder: &mut wgpu::CommandEncoder,
         scale_factor: f32,
         transformation: Transformation,
@@ -230,14 +238,14 @@ impl<Message, Theme> iced_graphics::custom::Program<Message, Renderer<Theme>>
         state: &Self::State,
         renderer: &mut Renderer<Theme>,
         _theme: &Theme,
-        _bounds: Rectangle,
+        bounds: Rectangle,
         _cursor: Cursor,
     ) {
+        //TODO draw primitive dont really make sense here; renderer.pipeline()?
+        // this is more of like a marker for "render all my primitives I have right now"
         renderer.draw_primitive(Primitive::custom(
+            bounds,
             CustomPipeline::new(self.id, State::init),
-            Cube {
-                origin: [0.0, 0.0, 0.0],
-            },
         ));
     }
 }

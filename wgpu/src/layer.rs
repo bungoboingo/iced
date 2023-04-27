@@ -5,9 +5,6 @@ mod text;
 
 pub mod mesh;
 
-use std::any::Any;
-use std::collections::HashMap;
-use iced_graphics::primitive::{CustomPipeline, Renderable};
 pub use image::Image;
 pub use mesh::Mesh;
 pub use quad::Quad;
@@ -36,8 +33,8 @@ pub struct Layer<'a> {
     /// The images of the [`Layer`].
     pub images: Vec<Image>,
 
-    /// The custom primitives of the [`Layer`].
-    pub custom: HashMap<u64, Box<dyn Any>>, //TODO NO BOX???
+    /// The custom primitives of this [`Layer`].
+    pub custom: Vec<u64>,
 }
 
 impl<'a> Layer<'a> {
@@ -49,7 +46,7 @@ impl<'a> Layer<'a> {
             meshes: Vec::new(),
             text: Vec::new(),
             images: Vec::new(),
-            custom: HashMap::new(),
+            custom: vec![],
         }
     }
 
@@ -90,6 +87,8 @@ impl<'a> Layer<'a> {
     /// on its contents.
     pub fn generate(
         primitives: &'a [Primitive],
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
         pipelines: &mut Pipelines,
         viewport: &Viewport,
     ) -> Vec<Self> {
@@ -101,6 +100,8 @@ impl<'a> Layer<'a> {
         for primitive in primitives {
             Self::process_primitive(
                 &mut layers,
+                device,
+                format,
                 pipelines,
                 Vector::new(0.0, 0.0),
                 primitive,
@@ -113,6 +114,8 @@ impl<'a> Layer<'a> {
 
     fn process_primitive(
         layers: &mut Vec<Self>,
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
         pipelines: &mut Pipelines,
         translation: Vector,
         primitive: &'a Primitive,
@@ -229,6 +232,8 @@ impl<'a> Layer<'a> {
                 for primitive in primitives {
                     Self::process_primitive(
                         layers,
+                        device,
+                        format,
                         pipelines,
                         translation,
                         primitive,
@@ -242,13 +247,15 @@ impl<'a> Layer<'a> {
 
                 // Only draw visible content
                 if let Some(clip_bounds) =
-                    layer.bounds.intersection(&translated_bounds)
+                    layer.bounds().intersection(&translated_bounds)
                 {
                     let clip_layer = Layer::new(clip_bounds);
                     layers.push(clip_layer);
 
                     Self::process_primitive(
                         layers,
+                        device,
+                        format,
                         pipelines,
                         translation,
                         content,
@@ -262,6 +269,8 @@ impl<'a> Layer<'a> {
             } => {
                 Self::process_primitive(
                     layers,
+                    device,
+                    format,
                     pipelines,
                     translation + *new_translation,
                     content,
@@ -271,22 +280,27 @@ impl<'a> Layer<'a> {
             Primitive::Cache { content } => {
                 Self::process_primitive(
                     layers,
+                    device,
+                    format,
                     pipelines,
                     translation,
                     content,
                     current_layer,
                 );
             }
-            Primitive::Custom(custom) => {
+            //TODO do something with bounds..
+            Primitive::Custom { bounds, pipeline } => {
                 let layer = &mut layers[current_layer];
+                // first add the pipeline ref to the layer if it doesn't exist
+                if let None = layer.custom.iter().find(|id| id == pipeline.id) {
+                    layer.custom.push(pipeline.id);
+                }
 
-                match layer.custom.get_mut(&custom.id) {
-                    Some(primitives) => {
-                        primitives.push()
-                    }
-                    None => {
-                        layer.custom.insert(custom, vec![])
-                    }
+                // now cache the pipeline & initialize the renderable to the list of pipelines if if doesn't exist
+                if pipelines.get(&pipeline.id).is_none() {
+                    let _ = pipelines.insert(pipeline.id, (pipeline.init)(
+                        device, format,
+                    ));
                 }
             }
             _ => {
