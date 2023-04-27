@@ -14,7 +14,11 @@ use tracing::info_span;
 use crate::image;
 
 use std::borrow::Cow;
+use std::collections::HashMap;
 use std::hash::Hash;
+use iced_graphics::primitive::{CustomPipeline, Renderable};
+
+pub(crate) type Pipelines = HashMap<u64, Box<dyn Renderable + 'static>>;
 
 /// A [`wgpu`] graphics backend for [`iced`].
 ///
@@ -28,6 +32,9 @@ pub struct Backend {
 
     #[cfg(any(feature = "image", feature = "svg"))]
     image_pipeline: image::Pipeline,
+
+    /// The custom primitives of a [`Layer`].
+    pipelines: Pipelines,
 
     default_font: Font,
     default_text_size: f32,
@@ -57,6 +64,7 @@ impl Backend {
             #[cfg(any(feature = "image", feature = "svg"))]
             image_pipeline,
 
+            pipelines: HashMap::new(),
             default_font: settings.default_font,
             default_text_size: settings.default_text_size,
         }
@@ -85,7 +93,7 @@ impl Backend {
         let scale_factor = viewport.scale_factor() as f32;
         let transformation = viewport.projection();
 
-        let mut layers = Layer::generate(primitives, viewport);
+        let mut layers = Layer::generate(primitives, &mut self.pipelines, viewport);
         layers.push(Layer::overlay(overlay_text, viewport));
 
         self.prepare(

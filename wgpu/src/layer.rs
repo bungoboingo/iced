@@ -5,10 +5,14 @@ mod text;
 
 pub mod mesh;
 
+use std::any::Any;
+use std::collections::HashMap;
+use iced_graphics::primitive::{CustomPipeline, Renderable};
 pub use image::Image;
 pub use mesh::Mesh;
 pub use quad::Quad;
 pub use text::Text;
+use crate::backend::Pipelines;
 
 use crate::core::alignment;
 use crate::core::{Background, Color, Font, Point, Rectangle, Size, Vector};
@@ -31,6 +35,9 @@ pub struct Layer<'a> {
 
     /// The images of the [`Layer`].
     pub images: Vec<Image>,
+
+    /// The custom primitives of the [`Layer`].
+    pub custom: HashMap<u64, Box<dyn Any>>, //TODO NO BOX???
 }
 
 impl<'a> Layer<'a> {
@@ -42,6 +49,7 @@ impl<'a> Layer<'a> {
             meshes: Vec::new(),
             text: Vec::new(),
             images: Vec::new(),
+            custom: HashMap::new(),
         }
     }
 
@@ -82,6 +90,7 @@ impl<'a> Layer<'a> {
     /// on its contents.
     pub fn generate(
         primitives: &'a [Primitive],
+        pipelines: &mut Pipelines,
         viewport: &Viewport,
     ) -> Vec<Self> {
         let first_layer =
@@ -92,6 +101,7 @@ impl<'a> Layer<'a> {
         for primitive in primitives {
             Self::process_primitive(
                 &mut layers,
+                pipelines,
                 Vector::new(0.0, 0.0),
                 primitive,
                 0,
@@ -103,6 +113,7 @@ impl<'a> Layer<'a> {
 
     fn process_primitive(
         layers: &mut Vec<Self>,
+        pipelines: &mut Pipelines,
         translation: Vector,
         primitive: &'a Primitive,
         current_layer: usize,
@@ -218,6 +229,7 @@ impl<'a> Layer<'a> {
                 for primitive in primitives {
                     Self::process_primitive(
                         layers,
+                        pipelines,
                         translation,
                         primitive,
                         current_layer,
@@ -237,6 +249,7 @@ impl<'a> Layer<'a> {
 
                     Self::process_primitive(
                         layers,
+                        pipelines,
                         translation,
                         content,
                         layers.len() - 1,
@@ -249,6 +262,7 @@ impl<'a> Layer<'a> {
             } => {
                 Self::process_primitive(
                     layers,
+                    pipelines,
                     translation + *new_translation,
                     content,
                     current_layer,
@@ -257,10 +271,23 @@ impl<'a> Layer<'a> {
             Primitive::Cache { content } => {
                 Self::process_primitive(
                     layers,
+                    pipelines,
                     translation,
                     content,
                     current_layer,
                 );
+            }
+            Primitive::Custom(custom) => {
+                let layer = &mut layers[current_layer];
+
+                match layer.custom.get_mut(&custom.id) {
+                    Some(primitives) => {
+                        primitives.push()
+                    }
+                    None => {
+                        layer.custom.insert(custom, vec![])
+                    }
+                }
             }
             _ => {
                 // Unsupported!

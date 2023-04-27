@@ -3,12 +3,13 @@ use iced::event::Status;
 use iced::mouse::Interaction;
 use iced::{Color, Rectangle, Renderer, Size};
 use iced_graphics::custom::{Cursor, Event};
-use iced_graphics::primitive::Renderable;
+use iced_graphics::primitive::{CustomPipeline, Renderable};
 use iced_graphics::{Primitive, Transformation};
 use wgpu::util::DeviceExt;
-use wgpu::{CommandEncoder, Device, Queue, RenderPass, TextureView};
 
-pub struct Cubes;
+pub struct Cubes {
+    id: u64,
+}
 
 pub struct State {
     pipeline: wgpu::RenderPipeline,
@@ -162,10 +163,10 @@ impl State {
 impl Renderable for State {
     fn prepare(
         &self,
-        _render_pass: &mut RenderPass<'_>,
-        _device: &Device,
-        queue: &mut Queue,
-        _encoder: &mut CommandEncoder,
+        _render_pass: &mut wgpu::RenderPass<'_>,
+        _device: &wgpu::Device,
+        queue: &mut wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
         scale_factor: f32,
         transformation: Transformation,
     ) {
@@ -189,10 +190,10 @@ impl Renderable for State {
 
     fn render<'a, 'b>(
         &'a self,
-        render_pass: &mut RenderPass<'b>,
-        _device: &Device,
-        _encoder: &mut CommandEncoder,
-        _target: &TextureView,
+        render_pass: &mut wgpu::RenderPass<'b>,
+        _device: &wgpu::Device,
+        _encoder: &mut wgpu::CommandEncoder,
+        _target: &wgpu::TextureView,
         _clear_color: Option<Color>,
         _scale_factor: f32,
         _target_size: Size<u32>,
@@ -224,16 +225,6 @@ impl<Message, Theme> iced_graphics::custom::Program<Message, Renderer<Theme>>
 {
     type State = ();
 
-    fn update(
-        &self,
-        _state: &mut Self::State,
-        _event: Event,
-        _bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> (Status, Option<Message>) {
-        todo!()
-    }
-
     fn draw(
         &self,
         state: &Self::State,
@@ -242,16 +233,12 @@ impl<Message, Theme> iced_graphics::custom::Program<Message, Renderer<Theme>>
         _bounds: Rectangle,
         _cursor: Cursor,
     ) {
-        renderer.draw_primitive(Primitive::custom(State::init));
-    }
-
-    fn mouse_interaction(
-        &self,
-        _state: &Self::State,
-        _bounds: Rectangle,
-        _cursor: Cursor,
-    ) -> Interaction {
-        todo!()
+        renderer.draw_primitive(Primitive::custom(
+            CustomPipeline::new(self.id, State::init),
+            Cube {
+                origin: [0.0, 0.0, 0.0],
+            },
+        ));
     }
 }
 

@@ -1,9 +1,11 @@
+use std::any::Any;
 use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
 use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
-use std::any::Any;
+use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 
 use crate::Transformation;
 use bytemuck::{Pod, Zeroable};
@@ -13,7 +15,7 @@ use std::sync::Arc;
 pub trait Renderable {
     fn prepare(
         &self,
-        render_pass: &mut wgpu::RenderPass<'_>,
+        _render_pass: &mut wgpu::RenderPass<'_>,
         _device: &wgpu::Device,
         _queue: &mut wgpu::Queue,
         _encoder: &mut wgpu::CommandEncoder,
@@ -181,18 +183,15 @@ pub enum Primitive {
         content: Arc<Primitive>,
     },
     #[cfg(feature = "wgpu")]
-    Custom(Custom),
+    Custom {
+        pipeline: CustomPipeline,
+        data: Box<dyn Any>,
+    },
 }
 
-#[cfg(feature = "wgpu")]
-pub struct Custom {
-    id: u64,
-    init: fn(&wgpu::Device, wgpu::TextureFormat) -> Box<dyn Renderable>,
-}
-
-impl Debug for Custom {
+impl Debug for CustomPipeline {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Primitive::Custom")
+        write!(f, "CustomPipeline id: {:?}", self.id)
     }
 }
 
@@ -216,13 +215,11 @@ impl Primitive {
     }
 
     #[cfg(feature = "wgpu")]
-    pub fn custom(
-        init: fn(
-            device: &wgpu::Device,
-            format: wgpu::TextureFormat,
-        ) -> Box<dyn Renderable + 'static>,
-    ) -> Self {
-        Self::Custom(Custom { id: 0, init })
+    pub fn custom<T>(pipeline: CustomPipeline, data: T) -> Self {
+        Self::Custom {
+            pipeline,
+            data: Box::new(data),
+        }
     }
 }
 
@@ -260,5 +257,32 @@ pub struct ColoredVertex2D {
 impl From<()> for Primitive {
     fn from(_: ()) -> Self {
         Self::Group { primitives: vec![] }
+    }
+}
+
+/// An identifier for a custom pipeline.
+pub struct CustomPipeline {
+    pub id: u64,
+    pub init: fn(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+    ) -> Box<dyn Renderable + 'static>,
+}
+
+impl CustomPipeline {
+    pub fn new(
+        id: impl Hash,
+        init: fn(
+            device: &wgpu::Device,
+            format: wgpu::TextureFormat,
+        ) -> Box<dyn Renderable + 'static>,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        id.hash(&mut hasher);
+
+        Self {
+            id: hasher.finish(),
+            init,
+        }
     }
 }
