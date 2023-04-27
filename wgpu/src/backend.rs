@@ -14,6 +14,7 @@ use tracing::info_span;
 use crate::image;
 
 use std::borrow::Cow;
+use std::hash::Hash;
 
 /// A [`wgpu`] graphics backend for [`iced`].
 ///
@@ -395,3 +396,11 @@ impl backend::Svg for Backend {
         self.image_pipeline.viewport_dimensions(handle)
     }
 }
+
+// pub struct PipelineId(u64);
+//
+// impl PipelineId {
+//     pub fn new(id: impl Hash) -> Self {
+//
+//     }
+// }

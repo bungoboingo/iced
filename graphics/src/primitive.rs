@@ -2,11 +2,62 @@ use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
 use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
+use std::any::Any;
 use std::fmt::{Debug, Formatter};
 
+use crate::Transformation;
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
-use crate::custom::Renderable;
+
+#[cfg(feature = "wgpu")]
+pub trait Renderable {
+    fn prepare(
+        &self,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        _device: &wgpu::Device,
+        _queue: &mut wgpu::Queue,
+        _encoder: &mut wgpu::CommandEncoder,
+        _scale_factor: f32,
+        _transformation: Transformation,
+    );
+
+    fn render<'a, 'b>(
+        &'a self,
+        render_pass: &mut wgpu::RenderPass<'b>,
+        _device: &wgpu::Device,
+        _encoder: &mut wgpu::CommandEncoder,
+        _target: &wgpu::TextureView,
+        _clear_color: Option<Color>,
+        _scale_factor: f32,
+        _target_size: Size<u32>,
+    ) where
+        'a: 'b;
+}
+
+// #[cfg(feature = "wgpu")]
+// pub type InitDescriptor =
+//     fn(device: &wgpu::Device, format: wgpu::TextureFormat) -> Box<dyn Any>;
+//
+// #[cfg(feature = "wgpu")]
+// pub type PrepareDescriptor = impl Fn(
+//     &mut wgpu::RenderPass<'_>,
+//     &wgpu::Device,
+//     &mut wgpu::Queue,
+//     &mut wgpu::CommandEncoder,
+//     f32,
+//     Transformation,
+// );
+//
+// #[cfg(feature = "wgpu")]
+// pub type RenderDescriptor = fn(
+//     render_pass: &mut wgpu::RenderPass<'_>,
+//     device: &wgpu::Device,
+//     encoder: &mut wgpu::CommandEncoder,
+//     target: &wgpu::TextureView,
+//     clear_color: Option<Color>,
+//     scale_factor: f32,
+//     target_size: Size<u32>,
+// );
 
 /// A rendering primitive.
 #[derive(Debug)]
@@ -133,22 +184,16 @@ pub enum Primitive {
     Custom(Custom),
 }
 
-//todo cfg module
 #[cfg(feature = "wgpu")]
 pub struct Custom {
-    pub draw: Box<dyn Renderable>,
+    id: u64,
+    init: fn(&wgpu::Device, wgpu::TextureFormat) -> Box<dyn Renderable>,
 }
 
-#[cfg(feature = "wgpu")]
 impl Debug for Custom {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Custom Primitive.")
+        write!(f, "Primitive::Custom")
     }
-}
-
-#[cfg(feature = "wgpu")]
-pub fn custom(renderable: Box<dyn Renderable + 'static>) -> Primitive {
-    Primitive::Custom(Custom { draw: renderable })
 }
 
 impl Primitive {
@@ -168,6 +213,16 @@ impl Primitive {
             translation,
             content: Box::new(self),
         }
+    }
+
+    #[cfg(feature = "wgpu")]
+    pub fn custom(
+        init: fn(
+            device: &wgpu::Device,
+            format: wgpu::TextureFormat,
+        ) -> Box<dyn Renderable + 'static>,
+    ) -> Self {
+        Self::Custom(Custom { id: 0, init })
     }
 }
 

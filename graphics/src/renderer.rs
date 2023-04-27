@@ -1,6 +1,7 @@
 //! Create a renderer from a [`Backend`].
 use crate::backend::{self, Backend};
 use crate::Primitive;
+use std::any::Any;
 
 use iced_core::image;
 use iced_core::layout;

@@ -13,7 +13,7 @@ use crate::{Backend, Renderer};
 pub use cursor::Cursor;
 pub use event::Event;
 use iced_core::Element;
-pub use program::{Program, Renderable};
+pub use program::Program;
 
 /// A widget for rendering custom shaders.
 #[derive(Debug)]

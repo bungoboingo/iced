@@ -1,9 +1,9 @@
 use crate::custom::cursor::Cursor;
 use crate::custom::event::Event;
-use crate::{Primitive, Transformation};
+use crate::Transformation;
 use iced_core::{event, Rectangle};
-use iced_core::{mouse, Color, Size};
-use wgpu::{Device, Queue, TextureView};
+use iced_core::{mouse, Size};
+use wgpu::{Queue, TextureView};
 
 /// The state & logic of a [`CustomShader`] widget.
 pub trait Program<Message, Renderer>
@@ -11,7 +11,7 @@ where
     Renderer: iced_core::Renderer,
 {
     /// The internal state mutated by the [`Program`].
-    type State: Default + Renderable + 'static;
+    type State: Default + 'static;
 
     /// Updates the [`State`] of the [`Program`].
     ///
@@ -23,9 +23,9 @@ where
     fn update(
         &self,
         _state: &mut Self::State,
-        _event: Event, //TODO own event type
+        _event: Event, //TODO can share with canvas
         _bounds: Rectangle,
-        _cursor: Cursor, //TODO cursor type,
+        _cursor: Cursor, //TODO can share with canvas
     ) -> (event::Status, Option<Message>) {
         (event::Status::Ignored, None)
     }
@@ -86,31 +86,4 @@ where
     ) -> mouse::Interaction {
         T::mouse_interaction(self, state, bounds, cursor)
     }
-}
-
-pub trait Renderable {
-    /// Initializes the [`Renderable`].
-    fn init(&mut self, device: &wgpu::Device, format: wgpu::TextureFormat);
-
-    /// Prepares the [`Renderable`] to be rendered.
-    fn prepare(
-        &mut self,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
-        _scale_factor: f32,
-        _transformation: Transformation,
-    );
-
-    /// Renders the [`Renderable`].
-    fn render(
-        &self,
-        render_pass: &mut wgpu::RenderPass<'_>,
-        device: &wgpu::Device,
-        encoder: &mut wgpu::CommandEncoder,
-        target: &wgpu::TextureView,
-        clear_color: Option<Color>,
-        scale_factor: f32,
-        target_size: Size<u32>,
-    );
 }
