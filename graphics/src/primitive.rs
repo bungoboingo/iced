@@ -34,7 +34,7 @@ pub trait Renderable {
 }
 
 /// A rendering primitive.
-#[derive(Debug)]
+#[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
 pub enum Primitive {
     /// A text primitive
@@ -186,6 +186,68 @@ impl Primitive {
         }
     }
 
+    pub fn bounds(&self) -> Rectangle {
+        match self {
+            Self::Text {
+                bounds,
+                horizontal_alignment,
+                vertical_alignment,
+                ..
+            } => {
+                let mut bounds = *bounds;
+
+                bounds.x = match horizontal_alignment {
+                    alignment::Horizontal::Left => bounds.x,
+                    alignment::Horizontal::Center => {
+                        bounds.x - bounds.width / 2.0
+                    }
+                    alignment::Horizontal::Right => bounds.x - bounds.width,
+                };
+
+                bounds.y = match vertical_alignment {
+                    alignment::Vertical::Top => bounds.y,
+                    alignment::Vertical::Center => {
+                        bounds.y - bounds.height / 2.0
+                    }
+                    alignment::Vertical::Bottom => bounds.y - bounds.height,
+                };
+
+                bounds.expand(1.5)
+            }
+            Self::Quad { bounds, .. }
+            | Self::Image { bounds, .. }
+            | Self::Svg { bounds, .. }
+            | Self::Custom { bounds, .. } => bounds.expand(1.0),
+            Self::Clip { bounds, .. } => bounds.expand(1.0),
+            Self::SolidMesh { size, .. } | Self::GradientMesh { size, .. } => {
+                Rectangle::with_size(*size)
+            }
+            #[cfg(feature = "tiny-skia")]
+            Self::Fill { path, .. } | Self::Stroke { path, .. } => {
+                let bounds = path.bounds();
+
+                Rectangle {
+                    x: bounds.x(),
+                    y: bounds.y(),
+                    width: bounds.width(),
+                    height: bounds.height(),
+                }
+                .expand(1.0)
+            }
+            Self::Group { primitives } => primitives
+                .iter()
+                .map(Self::bounds)
+                .fold(Rectangle::with_size(Size::ZERO), |a, b| {
+                    Rectangle::union(&a, &b)
+                }),
+            Self::Translate {
+                translation,
+                content,
+            } => content.bounds() + *translation,
+            Self::Cache { content } => content.bounds(),
+        }
+    }
+
     #[cfg(feature = "wgpu")]
     pub fn custom(bounds: Rectangle, pipeline: CustomPipeline) -> Self {
         Self::Custom {
@@ -196,7 +258,7 @@ impl Primitive {
 }
 
 /// A set of [`Vertex2D`] and indices representing a list of triangles.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Mesh2D<T> {
     /// The vertices of the mesh
     pub vertices: Vec<T>,
@@ -208,7 +270,7 @@ pub struct Mesh2D<T> {
 }
 
 /// A two-dimensional vertex.
-#[derive(Copy, Clone, Debug, Zeroable, Pod)]
+#[derive(Copy, Clone, Debug, PartialEq, Zeroable, Pod)]
 #[repr(C)]
 pub struct Vertex2D {
     /// The vertex position in 2D space.
@@ -216,7 +278,7 @@ pub struct Vertex2D {
 }
 
 /// A two-dimensional vertex with a color.
-#[derive(Copy, Clone, Debug, Zeroable, Pod)]
+#[derive(Copy, Clone, Debug, PartialEq, Zeroable, Pod)]
 #[repr(C)]
 pub struct ColoredVertex2D {
     /// The vertex position in 2D space.
