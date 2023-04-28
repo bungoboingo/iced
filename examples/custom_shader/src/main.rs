@@ -1,8 +1,8 @@
-mod cubes;
+mod triangle;
 
-use iced::{executor, Application, Command, Element, Renderer, Theme, Length};
-use iced_graphics::custom::Shader;
-use crate::cubes::Cubes;
+use crate::triangle::Triangle;
+use iced::widget::container;
+use iced::{executor, Application, Command, Element, Length, Renderer, Theme, Color};
 
 fn main() -> iced::Result {
     Example::run(iced::Settings::default())
@@ -34,9 +34,11 @@ impl Application for Example {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
-        Shader::new(Cubes::new())
-            .width(Length::Fill)
+        Element::from(container(Triangle::new().width(Length::Fill).height(Length::Fill).id(0))
             .height(Length::Fill)
-            .into()
+            .width(Length::Fill)
+            .center_x()
+            .center_y())
+            .explain(Color::from_rgb8(255, 0, 0))
     }
 }

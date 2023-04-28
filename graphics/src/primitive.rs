@@ -13,7 +13,7 @@ use std::sync::Arc;
 #[cfg(feature = "wgpu")]
 pub trait Renderable {
     fn prepare(
-        &self,
+        &mut self,
         _device: &wgpu::Device,
         _queue: &wgpu::Queue,
         _encoder: &mut wgpu::CommandEncoder,
@@ -25,7 +25,6 @@ pub trait Renderable {
         &'a self,
         render_pass: &mut wgpu::RenderPass<'b>,
         _device: &wgpu::Device,
-        _encoder: &mut wgpu::CommandEncoder,
         _target: &wgpu::TextureView,
         _clear_color: Option<Color>,
         _scale_factor: f32,
@@ -33,31 +32,6 @@ pub trait Renderable {
     ) where
         'a: 'b;
 }
-
-// #[cfg(feature = "wgpu")]
-// pub type InitDescriptor =
-//     fn(device: &wgpu::Device, format: wgpu::TextureFormat) -> Box<dyn Any>;
-//
-// #[cfg(feature = "wgpu")]
-// pub type PrepareDescriptor = impl Fn(
-//     &mut wgpu::RenderPass<'_>,
-//     &wgpu::Device,
-//     &mut wgpu::Queue,
-//     &mut wgpu::CommandEncoder,
-//     f32,
-//     Transformation,
-// );
-//
-// #[cfg(feature = "wgpu")]
-// pub type RenderDescriptor = fn(
-//     render_pass: &mut wgpu::RenderPass<'_>,
-//     device: &wgpu::Device,
-//     encoder: &mut wgpu::CommandEncoder,
-//     target: &wgpu::TextureView,
-//     clear_color: Option<Color>,
-//     scale_factor: f32,
-//     target_size: Size<u32>,
-// );
 
 /// A rendering primitive.
 #[derive(Debug)]

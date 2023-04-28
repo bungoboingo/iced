@@ -27,8 +27,8 @@ impl<P> Shader<P> {
     /// Creates a new [`Shader`] widget.
     pub fn new(program: P) -> Self {
         Self {
-            width: Length::Fill,
-            height: Length::Fill,
+            width: Length::Shrink,
+            height: Length::Shrink,
             program,
         }
     }

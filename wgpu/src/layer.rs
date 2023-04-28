@@ -247,7 +247,7 @@ impl<'a> Layer<'a> {
 
                 // Only draw visible content
                 if let Some(clip_bounds) =
-                    layer.bounds().intersection(&translated_bounds)
+                    layer.bounds.intersection(&translated_bounds)
                 {
                     let clip_layer = Layer::new(clip_bounds);
                     layers.push(clip_layer);
@@ -288,11 +288,10 @@ impl<'a> Layer<'a> {
                     current_layer,
                 );
             }
-            //TODO do something with bounds..
-            Primitive::Custom { bounds, pipeline } => {
+            Primitive::Custom {  pipeline, .. } => {
                 let layer = &mut layers[current_layer];
                 // first add the pipeline ref to the layer if it doesn't exist
-                if let None = layer.custom.iter().find(|id| id == pipeline.id) {
+                if let None = layer.custom.iter().find(|id| *id == &pipeline.id) {
                     layer.custom.push(pipeline.id);
                 }
 
