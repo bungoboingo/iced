@@ -1,8 +1,7 @@
 mod triangle;
 
 use crate::triangle::Triangle;
-use iced::widget::container;
-use iced::{executor, Application, Command, Element, Length, Renderer, Theme, Color};
+use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
 
 fn main() -> iced::Result {
     Example::run(iced::Settings::default())
@@ -34,11 +33,10 @@ impl Application for Example {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
-        Element::from(container(Triangle::new().width(Length::Fill).height(Length::Fill).id(0))
-            .height(Length::Fill)
+        Triangle::new()
             .width(Length::Fill)
-            .center_x()
-            .center_y())
-            .explain(Color::from_rgb8(255, 0, 0))
+            .height(Length::Fill)
+            .id(0)
+            .into()
     }
 }

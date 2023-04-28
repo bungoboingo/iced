@@ -32,9 +32,6 @@ pub mod damage;
 pub mod primitive;
 pub mod renderer;
 
-#[cfg(feature = "wgpu")]
-pub mod custom;
-
 #[cfg(feature = "geometry")]
 pub mod geometry;
 

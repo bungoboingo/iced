@@ -194,8 +194,12 @@ impl Backend {
                 let scaled = transformation
                     * Transformation::scale(scale_factor, scale_factor);
 
-                self.triangle_pipeline
-                    .prepare(device, queue, &layer.meshes, scaled);
+                self.triangle_pipeline.prepare(
+                    device,
+                    queue,
+                    &layer.meshes,
+                    scaled,
+                );
             }
 
             #[cfg(any(feature = "image", feature = "svg"))]
@@ -207,7 +211,7 @@ impl Backend {
                     self.image_pipeline.prepare(
                         device,
                         queue,
-                        encoder,
+                        _encoder,
                         &layer.images,
                         scaled,
                         scale_factor,
@@ -285,11 +289,8 @@ impl Backend {
             }
 
             if !layer.quads.is_empty() {
-                self.quad_pipeline.render(
-                    quad_layer,
-                    bounds,
-                    &mut render_pass,
-                );
+                self.quad_pipeline
+                    .render(quad_layer, bounds, &mut render_pass);
 
                 quad_layer += 1;
             }
@@ -309,23 +310,22 @@ impl Backend {
 
                 triangle_layer += 1;
 
-                render_pass =
-                    ManuallyDrop::new(encoder.begin_render_pass(
-                        &wgpu::RenderPassDescriptor {
-                            label: Some("iced_wgpu::quad render pass"),
-                            color_attachments: &[Some(
-                                wgpu::RenderPassColorAttachment {
-                                    view: target,
-                                    resolve_target: None,
-                                    ops: wgpu::Operations {
-                                        load: wgpu::LoadOp::Load,
-                                        store: true,
-                                    },
+                render_pass = ManuallyDrop::new(encoder.begin_render_pass(
+                    &wgpu::RenderPassDescriptor {
+                        label: Some("iced_wgpu::quad render pass"),
+                        color_attachments: &[Some(
+                            wgpu::RenderPassColorAttachment {
+                                view: target,
+                                resolve_target: None,
+                                ops: wgpu::Operations {
+                                    load: wgpu::LoadOp::Load,
+                                    store: true,
                                 },
-                            )],
-                            depth_stencil_attachment: None,
-                        },
-                    ));
+                            },
+                        )],
+                        depth_stencil_attachment: None,
+                    },
+                ));
             }
 
             #[cfg(any(feature = "image", feature = "svg"))]
@@ -342,11 +342,8 @@ impl Backend {
             }
 
             if !layer.text.is_empty() {
-                self.text_pipeline.render(
-                    text_layer,
-                    bounds,
-                    &mut render_pass,
-                );
+                self.text_pipeline
+                    .render(text_layer, bounds, &mut render_pass);
 
                 text_layer += 1;
             }
@@ -437,11 +434,3 @@ impl backend::Svg for Backend {
         self.image_pipeline.viewport_dimensions(handle)
     }
 }
-
-// pub struct PipelineId(u64);
-//
-// impl PipelineId {
-//     pub fn new(id: impl Hash) -> Self {
-//
-//     }
-// }

@@ -295,12 +295,19 @@ impl From<()> for Primitive {
 }
 
 /// An identifier for a custom pipeline.
+#[derive(Clone)]
 pub struct CustomPipeline {
     pub id: u64,
     pub init: fn(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
     ) -> Box<dyn Renderable + 'static>,
+}
+
+impl PartialEq for CustomPipeline {
+    fn eq(&self, other: &Self) -> bool {
+        other.id == self.id
+    }
 }
 
 impl CustomPipeline {
