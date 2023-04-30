@@ -28,6 +28,7 @@ mod viewport;
 
 pub mod backend;
 pub mod compositor;
+pub mod custom;
 pub mod damage;
 pub mod primitive;
 pub mod renderer;
@@ -41,6 +42,7 @@ pub mod image;
 pub use antialiasing::Antialiasing;
 pub use backend::Backend;
 pub use compositor::Compositor;
+pub use custom::Custom;
 pub use error::Error;
 pub use primitive::Primitive;
 pub use renderer::Renderer;

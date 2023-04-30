@@ -2,10 +2,12 @@ use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
 use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
+use std::any::Any;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 
+use crate::custom::Program;
 use crate::Transformation;
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
@@ -250,10 +252,7 @@ impl Primitive {
 
     #[cfg(feature = "wgpu")]
     pub fn custom(bounds: Rectangle, pipeline: CustomPipeline) -> Self {
-        Self::Custom {
-            bounds,
-            pipeline,
-        }
+        Self::Custom { bounds, pipeline }
     }
 }
 
@@ -298,10 +297,25 @@ impl From<()> for Primitive {
 #[derive(Clone)]
 pub struct CustomPipeline {
     pub id: u64,
-    pub init: fn(
+    pub pipeline:
+        fn(device: &wgpu::Device, format: wgpu::TextureFormat) -> Box<dyn Any>, //returns the "State" of the pipeline
+    pub prepare: fn(
+        state: &mut Box<dyn Any + 'static>,
         device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-    ) -> Box<dyn Renderable + 'static>,
+        queue: &wgpu::Queue,
+        encoder: &mut wgpu::CommandEncoder,
+        scale_factor: f32,
+        transformation: Transformation,
+    ),
+    pub render: fn(
+        state: Box<dyn Any + 'static>,
+        render_pass: &mut wgpu::RenderPass<'_>,
+        device: &wgpu::Device,
+        target: &wgpu::TextureView,
+        clear_color: Option<Color>,
+        scale_factor: f32,
+        target_size: Size<u32>,
+    ),
 }
 
 impl PartialEq for CustomPipeline {
@@ -310,20 +324,3 @@ impl PartialEq for CustomPipeline {
     }
 }
 
-impl CustomPipeline {
-    pub fn new(
-        id: impl Hash,
-        init: fn(
-            device: &wgpu::Device,
-            format: wgpu::TextureFormat,
-        ) -> Box<dyn Renderable + 'static>,
-    ) -> Self {
-        let mut hasher = DefaultHasher::new();
-        id.hash(&mut hasher);
-
-        Self {
-            id: hasher.finish(),
-            init,
-        }
-    }
-}
