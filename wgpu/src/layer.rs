@@ -89,6 +89,7 @@ impl<'a> Layer<'a> {
         primitives: &'a [Primitive],
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
+        target_size: Size<u32>,
         pipelines: &mut Pipelines,
         viewport: &Viewport,
     ) -> Vec<Self> {
@@ -102,6 +103,7 @@ impl<'a> Layer<'a> {
                 &mut layers,
                 device,
                 format,
+                target_size,
                 pipelines,
                 Vector::new(0.0, 0.0),
                 primitive,
@@ -116,6 +118,7 @@ impl<'a> Layer<'a> {
         layers: &mut Vec<Self>,
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
+        target_size: Size<u32>,
         pipelines: &mut Pipelines,
         translation: Vector,
         primitive: &'a Primitive,
@@ -234,6 +237,7 @@ impl<'a> Layer<'a> {
                         layers,
                         device,
                         format,
+                        target_size,
                         pipelines,
                         translation,
                         primitive,
@@ -256,6 +260,7 @@ impl<'a> Layer<'a> {
                         layers,
                         device,
                         format,
+                        target_size,
                         pipelines,
                         translation,
                         content,
@@ -271,6 +276,7 @@ impl<'a> Layer<'a> {
                     layers,
                     device,
                     format,
+                    target_size,
                     pipelines,
                     translation + *new_translation,
                     content,
@@ -282,6 +288,7 @@ impl<'a> Layer<'a> {
                     layers,
                     device,
                     format,
+                    target_size,
                     pipelines,
                     translation,
                     content,
@@ -298,7 +305,7 @@ impl<'a> Layer<'a> {
                 // now cache the pipeline & initialize the renderable to the list of pipelines if if doesn't exist
                 if pipelines.get(&pipeline.id).is_none() {
                     let _ = pipelines.insert(pipeline.id, (pipeline.init)(
-                        device, format,
+                        device, format, target_size,
                     ));
                 }
             }

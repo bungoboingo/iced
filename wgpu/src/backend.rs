@@ -93,8 +93,14 @@ impl Backend {
         let scale_factor = viewport.scale_factor() as f32;
         let transformation = viewport.projection();
 
-        let mut layers =
-            Layer::generate(primitives, device, format, &mut self.pipelines, viewport);
+        let mut layers = Layer::generate(
+            primitives,
+            device,
+            format,
+            target_size,
+            &mut self.pipelines,
+            viewport,
+        );
         layers.push(Layer::overlay(overlay_text, viewport));
 
         self.prepare(
@@ -227,7 +233,7 @@ impl Backend {
                             queue,
                             encoder,
                             scale_factor,
-                            transformation
+                            transformation,
                         );
                     }
                 }
@@ -298,6 +304,7 @@ impl Backend {
             if !layer.meshes.is_empty() {
                 let _ = ManuallyDrop::into_inner(render_pass);
 
+                // has it's own render pass
                 self.triangle_pipeline.render(
                     device,
                     encoder,
@@ -348,11 +355,13 @@ impl Backend {
                 text_layer += 1;
             }
 
+            let _ = ManuallyDrop::into_inner(render_pass);
+
             if !layer.custom.is_empty() {
                 for custom in &layer.custom {
                     if let Some(renderable) = self.pipelines.get(custom) {
                         renderable.render(
-                            &mut render_pass,
+                            encoder,
                             device,
                             target,
                             clear_color,
@@ -362,9 +371,24 @@ impl Backend {
                     }
                 }
             }
-        }
 
-        let _ = ManuallyDrop::into_inner(render_pass);
+            render_pass = ManuallyDrop::new(encoder.begin_render_pass(
+                &wgpu::RenderPassDescriptor {
+                    label: Some("iced_wgpu::quad render pass"),
+                    color_attachments: &[Some(
+                        wgpu::RenderPassColorAttachment {
+                            view: target,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            },
+                        },
+                    )],
+                    depth_stencil_attachment: None,
+                },
+            ));
+        }
     }
 }
 

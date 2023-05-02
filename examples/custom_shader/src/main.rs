@@ -1,7 +1,8 @@
-mod triangle;
+mod cubes;
+mod camera;
 
-use crate::triangle::Triangle;
 use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
+use crate::cubes::Cubes;
 
 fn main() -> iced::Result {
     Example::run(iced::Settings::default())
@@ -33,7 +34,7 @@ impl Application for Example {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
-        Triangle::new()
+        Cubes::new()
             .width(Length::Fill)
             .height(Length::Fill)
             .id(0)

@@ -21,16 +21,15 @@ pub trait Renderable {
         _transformation: Transformation,
     );
 
-    fn render<'a, 'b>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'b>,
+    fn render(
+        &self,
+        encoder: &mut wgpu::CommandEncoder,
         _device: &wgpu::Device,
         _target: &wgpu::TextureView,
         _clear_color: Option<Color>,
         _scale_factor: f32,
         _target_size: Size<u32>,
-    ) where
-        'a: 'b;
+    );
 }
 
 /// A rendering primitive.
@@ -301,6 +300,7 @@ pub struct CustomPipeline {
     pub init: fn(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
+        target_size: Size<u32>,
     ) -> Box<dyn Renderable + 'static>,
 }
 
@@ -316,6 +316,7 @@ impl CustomPipeline {
         init: fn(
             device: &wgpu::Device,
             format: wgpu::TextureFormat,
+            target_size: Size<u32>,
         ) -> Box<dyn Renderable + 'static>,
     ) -> Self {
         let mut hasher = DefaultHasher::new();

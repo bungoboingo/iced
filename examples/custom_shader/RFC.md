@@ -18,8 +18,9 @@ unique pipeline id is added to the current layer. That ID is then used for a loo
 - No boxing of primitive data + no reflection needed
 
 **Cons:**
-- Shared state between widget instances
-  - If a user makes two instances of a custom widget which draws a custom primitive/shader, primitive state must be 
-    *shared* between those two widgets. This breaks a contract that Iced generally enforces.
+- State must be managed by the user and isn't inherently tied to the widget
 - In general feels a bit hacky
 - Dynamic dispatch of every draw call
+- Not flexible enough for all use cases
+  - For example, just needing to add a simple depth stencil texture to the `cubes` example required significant 
+    changes in the interface.

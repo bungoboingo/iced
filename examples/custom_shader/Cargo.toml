@@ -9,4 +9,5 @@ edition = "2021"
 iced = { path = "../..", features = ["debug", "advanced"]}
 iced_graphics = { path = "../../graphics" }
 wgpu = "0.15"
-bytemuck = "1.13.1"
+bytemuck = { version = "1.13.1" }
+glam = { version = "0.24.0", features = ["bytemuck"] }
