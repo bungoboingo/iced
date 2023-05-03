@@ -218,9 +218,9 @@ impl State {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Depth24Plus,
+            format: wgpu::TextureFormat::Depth32Float,
             usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[wgpu::TextureFormat::Depth24Plus],
+            view_formats: &[wgpu::TextureFormat::Depth32Float],
         });
 
         let depth_view = depth_texture.create_view(&wgpu::TextureViewDescriptor::default());
@@ -268,9 +268,9 @@ impl State {
                     conservative: false,
                 },
                 depth_stencil: Some(wgpu::DepthStencilState {
-                    format: wgpu::TextureFormat::Depth24Plus,
-                    depth_write_enabled: true,
-                    depth_compare: wgpu::CompareFunction::LessEqual,
+                    format: wgpu::TextureFormat::Depth32Float,
+                    depth_write_enabled: false,
+                    depth_compare: wgpu::CompareFunction::Less,
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -291,9 +291,9 @@ impl State {
                                 operation: wgpu::BlendOperation::Add,
                             },
                             alpha: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::One,
-                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                operation: wgpu::BlendOperation::Add,
+                                src_factor: wgpu::BlendFactor::Src,
+                                dst_factor: wgpu::BlendFactor::Dst,
+                                operation: wgpu::BlendOperation::Subtract,
                             },
                         }),
                         write_mask: wgpu::ColorWrites::ALL,
@@ -335,7 +335,7 @@ impl Renderable for State {
         encoder: &mut wgpu::CommandEncoder,
         _device: &wgpu::Device,
         target: &wgpu::TextureView,
-        _clear_color: Option<Color>,
+        clear_color: Option<Color>,
         _scale_factor: f32,
         _target_size: Size<u32>,
     ) {
@@ -346,7 +346,20 @@ impl Renderable for State {
                     view: target,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
+                        load: match clear_color {
+                            Some(background_color) => wgpu::LoadOp::Clear({
+                                let [r, g, b, a] =
+                                    background_color.into_linear();
+
+                                wgpu::Color {
+                                    r: f64::from(r),
+                                    g: f64::from(g),
+                                    b: f64::from(b),
+                                    a: f64::from(a),
+                                }
+                            }),
+                            None => wgpu::LoadOp::Load,
+                        },
                         store: true,
                     },
                 }

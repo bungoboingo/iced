@@ -19,7 +19,7 @@ struct VertexOutput {
 fn vs_main(input: VertexInput) -> VertexOutput {
     var out: VertexOutput;
     out.position = uniforms.projection * vec4<f32>(input.position, 1.0);
-        out.color = input.color;
+    out.color = input.color;
     return out;
 }
 
