@@ -7,24 +7,48 @@ use iced_core::{
     layout, Color, Element, Layout, Length, Point, Rectangle, Size, Widget,
 };
 use std::any::Any;
+use std::collections::hash_map::DefaultHasher;
+use std::fmt::{Debug, Formatter};
+use std::hash::{Hash, Hasher};
 
 mod program;
-pub use program::Program;
 use crate::primitive::CustomPipeline;
+pub use program::{Program, RenderState};
 
-#[derive(Debug)]
-pub struct Custom<P: Program> {
+pub struct Custom {
     width: Length,
     height: Length,
-    program: P,
+    init: fn(
+        device: &wgpu::Device,
+        format: wgpu::TextureFormat,
+        target_size: Size<u32>,
+    ) -> Box<dyn Program + 'static>,
+    id: u64,
 }
 
-impl<P: Program> Custom<P> {
-    pub fn new(program: P) -> Self {
+impl Debug for Custom {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "custom_shader_widget({:?})", self.id)
+    }
+}
+
+impl Custom {
+    pub fn new(
+        init: fn(
+            device: &wgpu::Device,
+            format: wgpu::TextureFormat,
+            target_size: Size<u32>,
+        ) -> Box<dyn Program + 'static>,
+        id: impl Hash,
+    ) -> Self {
+        let mut hasher = DefaultHasher::new();
+        id.hash(&mut hasher);
+
         Self {
             width: Length::Fill,
             height: Length::Fill,
-            program,
+            init,
+            id: hasher.finish(),
         }
     }
 
@@ -39,11 +63,7 @@ impl<P: Program> Custom<P> {
     }
 }
 
-impl<P, B, T, M> Widget<M, crate::Renderer<B, T>> for Custom<P>
-where
-    B: Backend,
-    P: Program,
-{
+impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Custom {
     fn width(&self) -> Length {
         self.width
     }
@@ -82,52 +102,19 @@ where
         renderer.draw_primitive(Primitive::Custom {
             bounds,
             pipeline: CustomPipeline {
-                id: P::id(),
-                pipeline: P::init,
-                prepare: |state: &mut Box<dyn Any>,
-                          device: &wgpu::Device,
-                          queue: &wgpu::Queue,
-                          encoder: &mut wgpu::CommandEncoder,
-                          scale_factor: f32,
-                          transformation: Transformation| {
-                    P::prepare(
-                        state.downcast_mut::<P>().unwrap(),
-                        device,
-                        queue,
-                        encoder,
-                        scale_factor,
-                        transformation,
-                    )
-                },
-                render: |state: Box<dyn Any>,
-                         render_pass: &mut wgpu::RenderPass<'_>,
-                         device: &wgpu::Device,
-                         target: &wgpu::TextureView,
-                         clear_color: Option<Color>,
-                         scale_factor: f32,
-                         target_size: Size<u32>| {
-                    P::render(
-                        state.downcast_ref::<P>().unwrap(),
-                        render_pass,
-                        device,
-                        target,
-                        clear_color,
-                        scale_factor,
-                        target_size
-                    )
-                },
-            }
+                id: self.id,
+                init: self.init,
+            },
         })
     }
 }
 
-impl<'a, P, M, B, T> From<Custom<P>> for Element<'a, M, crate::Renderer<B, T>>
+impl<'a, M, B, T> From<Custom> for Element<'a, M, crate::Renderer<B, T>>
 where
     M: 'a,
-    P: Program + 'a,
     B: Backend,
 {
-    fn from(custom: Custom<P>) -> Element<'a, M, crate::Renderer<B, T>> {
+    fn from(custom: Custom) -> Element<'a, M, crate::Renderer<B, T>> {
         Element::new(custom)
     }
 }

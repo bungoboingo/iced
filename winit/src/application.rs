@@ -536,11 +536,12 @@ async fn run_instance<A, E, C>(
                     state.background_color(),
                     &debug.overlay(),
                 ) {
-                    Ok(()) => {
+                    Ok(should_redraw) => {
                         debug.render_finished();
 
-                        // TODO: Handle animations!
-                        // Maybe we can use `ControlFlow::WaitUntil` for this.
+                        if should_redraw {
+                            window.request_redraw();
+                        }
                     }
                     Err(error) => match error {
                         // This is an unrecoverable error.

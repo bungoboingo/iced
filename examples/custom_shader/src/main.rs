@@ -1,9 +1,9 @@
-mod triangle;
-mod program;
+mod camera;
+mod cubes;
 
-use crate::triangle::Triangle;
+use crate::cubes::Pipeline;
 use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
-use crate::program::Program;
+use iced_graphics::Custom;
 
 fn main() -> iced::Result {
     Example::run(iced::Settings::default())
@@ -35,7 +35,7 @@ impl Application for Example {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
-        iced_graphics::Custom::new(Program::init)
+        Custom::new(Pipeline::init, 0)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()

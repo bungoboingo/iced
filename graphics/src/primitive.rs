@@ -2,38 +2,14 @@ use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
 use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
-use std::any::Any;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 
 use crate::custom::Program;
-use crate::Transformation;
+use crate::{custom, Transformation};
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
-
-#[cfg(feature = "wgpu")]
-pub trait Renderable {
-    fn prepare(
-        &mut self,
-        _device: &wgpu::Device,
-        _queue: &wgpu::Queue,
-        _encoder: &mut wgpu::CommandEncoder,
-        _scale_factor: f32,
-        _transformation: Transformation,
-    );
-
-    fn render<'a, 'b>(
-        &'a self,
-        render_pass: &mut wgpu::RenderPass<'b>,
-        _device: &wgpu::Device,
-        _target: &wgpu::TextureView,
-        _clear_color: Option<Color>,
-        _scale_factor: f32,
-        _target_size: Size<u32>,
-    ) where
-        'a: 'b;
-}
 
 /// A rendering primitive.
 #[derive(Debug, Clone, PartialEq)]
@@ -297,25 +273,11 @@ impl From<()> for Primitive {
 #[derive(Clone)]
 pub struct CustomPipeline {
     pub id: u64,
-    pub pipeline:
-        fn(device: &wgpu::Device, format: wgpu::TextureFormat) -> Box<dyn Any>, //returns the "State" of the pipeline
-    pub prepare: fn(
-        state: &mut Box<dyn Any + 'static>,
+    pub init: fn(
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
-        scale_factor: f32,
-        transformation: Transformation,
-    ),
-    pub render: fn(
-        state: Box<dyn Any + 'static>,
-        render_pass: &mut wgpu::RenderPass<'_>,
-        device: &wgpu::Device,
-        target: &wgpu::TextureView,
-        clear_color: Option<Color>,
-        scale_factor: f32,
+        format: wgpu::TextureFormat,
         target_size: Size<u32>,
-    ),
+    ) -> Box<dyn Program + 'static>,
 }
 
 impl PartialEq for CustomPipeline {
@@ -323,4 +285,3 @@ impl PartialEq for CustomPipeline {
         other.id == self.id
     }
 }
-

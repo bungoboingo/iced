@@ -10,6 +10,7 @@ use futures::stream::{self, StreamExt};
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 
 use std::marker::PhantomData;
+use iced_graphics::custom::RenderState;
 
 /// A window graphics backend for iced powered by `wgpu`.
 #[allow(missing_debug_implementations)]
@@ -157,7 +158,7 @@ pub fn present<Theme, T: AsRef<str>>(
     viewport: &Viewport,
     background_color: Color,
     overlay: &[T],
-) -> Result<(), compositor::SurfaceError> {
+) -> Result<bool, compositor::SurfaceError> {
     match surface.get_current_texture() {
         Ok(frame) => {
             let mut encoder = compositor.device.create_command_encoder(
@@ -170,7 +171,7 @@ pub fn present<Theme, T: AsRef<str>>(
                 .texture
                 .create_view(&wgpu::TextureViewDescriptor::default());
 
-            backend.present(
+            let render_state = backend.present(
                 &compositor.device,
                 &compositor.queue,
                 &mut encoder,
@@ -186,7 +187,7 @@ pub fn present<Theme, T: AsRef<str>>(
             let _submission = compositor.queue.submit(Some(encoder.finish()));
             frame.present();
 
-            Ok(())
+            Ok(matches!(render_state, RenderState::Dirty))
         }
         Err(error) => match error {
             wgpu::SurfaceError::Timeout => {
@@ -268,7 +269,7 @@ impl<Theme> graphics::Compositor for Compositor<Theme> {
         viewport: &Viewport,
         background_color: Color,
         overlay: &[T],
-    ) -> Result<(), compositor::SurfaceError> {
+    ) -> Result<bool, compositor::SurfaceError> {
         renderer.with_primitives(|backend, primitives| {
             present(
                 self,

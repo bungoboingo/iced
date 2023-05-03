@@ -13,11 +13,12 @@ use tracing::info_span;
 #[cfg(any(feature = "image", feature = "svg"))]
 use crate::image;
 
-use iced_graphics::primitive::Renderable;
 use std::borrow::Cow;
 use std::collections::HashMap;
+use std::time::{Duration, Instant};
+use iced_graphics::custom::{Program, RenderState};
 
-pub(crate) type Pipelines = HashMap<u64, Box<dyn Renderable + 'static>>;
+pub(crate) type Pipelines = HashMap<u64, Box<dyn Program + 'static>>;
 
 /// A [`wgpu`] graphics backend for [`iced`].
 ///
@@ -37,6 +38,9 @@ pub struct Backend {
 
     default_font: Font,
     default_text_size: f32,
+
+    start_time: Instant,
+    duration_since_start: Duration,
 }
 
 impl Backend {
@@ -66,6 +70,8 @@ impl Backend {
             pipelines: HashMap::new(),
             default_font: settings.default_font,
             default_text_size: settings.default_text_size,
+            start_time: Instant::now(),
+            duration_since_start: Duration::new(0, 0),
         }
     }
 
@@ -84,7 +90,7 @@ impl Backend {
         primitives: &[Primitive],
         viewport: &Viewport,
         overlay_text: &[T],
-    ) {
+    ) -> RenderState {
         log::debug!("Drawing");
         #[cfg(feature = "tracing")]
         let _ = info_span!("Wgpu::Backend", "PRESENT").entered();
@@ -92,9 +98,16 @@ impl Backend {
         let target_size = viewport.physical_size();
         let scale_factor = viewport.scale_factor() as f32;
         let transformation = viewport.projection();
+        self.duration_since_start = Instant::now() - self.start_time;
 
-        let mut layers =
-            Layer::generate(primitives, device, format, &mut self.pipelines, viewport);
+        let mut layers = Layer::generate(
+            primitives,
+            device,
+            format,
+            target_size,
+            &mut self.pipelines,
+            viewport,
+        );
         layers.push(Layer::overlay(overlay_text, viewport));
 
         self.prepare(
@@ -114,7 +127,7 @@ impl Backend {
             &layers,
         ) {}
 
-        self.render(
+        let render_state = self.render(
             device,
             encoder,
             frame,
@@ -130,6 +143,8 @@ impl Backend {
 
         #[cfg(any(feature = "image", feature = "svg"))]
         self.image_pipeline.end_frame();
+
+        render_state
     }
 
     fn prepare_text(
@@ -211,7 +226,7 @@ impl Backend {
                     self.image_pipeline.prepare(
                         device,
                         queue,
-                        _encoder,
+                        encoder,
                         &layer.images,
                         scaled,
                         scale_factor,
@@ -222,12 +237,13 @@ impl Backend {
             if !layer.custom.is_empty() {
                 for id in &layer.custom {
                     if let Some(renderable) = self.pipelines.get_mut(id) {
-                        renderable.prepare(
+                        renderable.update(
                             device,
                             queue,
                             encoder,
                             scale_factor,
-                            transformation
+                            transformation,
+                            self.duration_since_start,
                         );
                     }
                 }
@@ -244,9 +260,10 @@ impl Backend {
         scale_factor: f32,
         target_size: Size<u32>,
         layers: &[Layer<'_>],
-    ) {
+    ) -> RenderState {
         use std::mem::ManuallyDrop;
 
+        let mut render_state = RenderState::Clean;
         let mut quad_layer = 0;
         let mut triangle_layer = 0;
         #[cfg(any(feature = "image", feature = "svg"))]
@@ -285,7 +302,7 @@ impl Backend {
             let bounds = (layer.bounds * scale_factor).snap();
 
             if bounds.width < 1 || bounds.height < 1 {
-                return;
+                return render_state;
             }
 
             if !layer.quads.is_empty() {
@@ -298,6 +315,7 @@ impl Backend {
             if !layer.meshes.is_empty() {
                 let _ = ManuallyDrop::into_inner(render_pass);
 
+                // has it's own render pass
                 self.triangle_pipeline.render(
                     device,
                     encoder,
@@ -348,11 +366,13 @@ impl Backend {
                 text_layer += 1;
             }
 
+            let _ = ManuallyDrop::into_inner(render_pass);
+
             if !layer.custom.is_empty() {
                 for custom in &layer.custom {
                     if let Some(renderable) = self.pipelines.get(custom) {
-                        renderable.render(
-                            &mut render_pass,
+                        render_state = renderable.render(
+                            encoder,
                             device,
                             target,
                             clear_color,
@@ -362,9 +382,26 @@ impl Backend {
                     }
                 }
             }
+
+            render_pass = ManuallyDrop::new(encoder.begin_render_pass(
+                &wgpu::RenderPassDescriptor {
+                    label: Some("iced_wgpu::quad render pass"),
+                    color_attachments: &[Some(
+                        wgpu::RenderPassColorAttachment {
+                            view: target,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            },
+                        },
+                    )],
+                    depth_stencil_attachment: None,
+                },
+            ));
         }
 
-        let _ = ManuallyDrop::into_inner(render_pass);
+        render_state
     }
 }
 
