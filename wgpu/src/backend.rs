@@ -217,7 +217,7 @@ impl Backend {
                     self.image_pipeline.prepare(
                         device,
                         queue,
-                        _encoder,
+                        encoder,
                         &layer.images,
                         scaled,
                         scale_factor,

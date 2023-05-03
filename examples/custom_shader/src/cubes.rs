@@ -132,23 +132,23 @@ impl Cube {
     fn new() -> Self {
         Self([
             //front vertices
-            v3d(vec3(-1.0, -1.0, 1.0), Color::from_rgb(0.0, 0.0, 1.0)),
-            v3d(vec3(-1.0, 1.0, 1.0), Color::from_rgb(1.0, 0.0, 0.0)),
-            v3d(vec3(1.0, 1.0, 1.0), Color::from_rgb(1.0, 0.0, 0.0)),
-            v3d(vec3(1.0, -1.0, 1.0), Color::from_rgb(0.0, 0.0, 1.0)),
+            v3d(vec3(-1.0, -1.0, 1.0), Color::from_rgba8(75, 118, 156, 0.8)),
+            v3d(vec3(-1.0, 1.0, 1.0), Color::from_rgba8(179, 245, 255, 0.8)),
+            v3d(vec3(1.0, 1.0, 1.0), Color::from_rgba8(179, 245, 255, 0.8)),
+            v3d(vec3(1.0, -1.0, 1.0), Color::from_rgba8(75, 118, 156, 0.8)),
             //back vertices
-            v3d(vec3(-1.0, -1.0, -1.0), Color::from_rgb(0.0, 1.0, 0.0)),
-            v3d(vec3(-1.0, 1.0, -1.0), Color::from_rgb(0.0, 1.0, 0.0)),
-            v3d(vec3(1.0, 1.0, -1.0), Color::from_rgb(0.0, 1.0, 0.0)),
-            v3d(vec3(1.0, -1.0, -1.0), Color::from_rgb(0.0, 1.0, 0.0)),
+            v3d(vec3(-1.0, -1.0, -1.0), Color::from_rgba8(48, 86, 120, 0.8)),
+            v3d(vec3(-1.0, 1.0, -1.0), Color::from_rgba8(115, 208, 222, 0.8)),
+            v3d(vec3(1.0, 1.0, -1.0), Color::from_rgba8(115, 208, 222, 0.8)),
+            v3d(vec3(1.0, -1.0, -1.0), Color::from_rgba8(48, 86, 120, 0.8)),
         ])
     }
 
     fn scale(&mut self, scale: f32,) {
         for v in self.0.iter_mut() {
-            v.position.x = v.position.x * scale;
-            v.position.y = v.position.y * scale;
-            v.position.z = v.position.z * scale;
+            v.position.x *= scale;
+            v.position.y *= scale;
+            v.position.z *= scale;
         }
     }
 }
@@ -168,7 +168,7 @@ impl State {
 
         let indices = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("cubes index buffer"),
-            contents: &bytemuck::bytes_of(&Indices::new()),
+            contents: bytemuck::bytes_of(&Indices::new()),
             usage: wgpu::BufferUsages::INDEX,
         });
 
@@ -179,7 +179,7 @@ impl State {
 
         let uniforms = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("cubes uniform buffer"),
-            contents: &bytemuck::bytes_of(&u),
+            contents: bytemuck::bytes_of(&u),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
         });
 
