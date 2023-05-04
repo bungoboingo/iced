@@ -10,7 +10,7 @@ use futures::stream::{self, StreamExt};
 use raw_window_handle::{HasRawDisplayHandle, HasRawWindowHandle};
 
 use std::marker::PhantomData;
-use iced_graphics::custom::RenderState;
+use iced_graphics::custom::RenderStatus;
 
 /// A window graphics backend for iced powered by `wgpu`.
 #[allow(missing_debug_implementations)]
@@ -187,7 +187,7 @@ pub fn present<Theme, T: AsRef<str>>(
             let _submission = compositor.queue.submit(Some(encoder.finish()));
             frame.present();
 
-            Ok(matches!(render_state, RenderState::Dirty))
+            Ok(matches!(render_state, RenderStatus::RequestRedraw))
         }
         Err(error) => match error {
             wgpu::SurfaceError::Timeout => {

@@ -1,18 +1,10 @@
 use crate::camera::Camera;
+use crate::cube::{Cube, CubeRaw, Vertex3D};
 use bytemuck::{Pod, Zeroable};
-use glam::{vec3, vec4, Vec3};
-use iced::advanced::layout::{Limits, Node};
-use iced::advanced::renderer::Style;
-use iced::advanced::widget::Tree;
-use iced::advanced::{layout, Layout, Widget};
-use iced::{Color, Element, Length, Point, Rectangle, Size};
-use iced_graphics::custom::{Program, RenderState};
-use iced_graphics::primitive::CustomPipeline;
-use iced_graphics::{Backend, Primitive, Transformation};
-use std::collections::hash_map::DefaultHasher;
-use std::convert::Into;
-use std::hash::{Hash, Hasher};
-use std::ops::Neg;
+use glam::{vec3, Vec3};
+use iced::{Color, Size};
+use iced_graphics::custom::{Program, RenderStatus};
+use iced_graphics::Transformation;
 use std::time::Duration;
 use wgpu::util::BufferInitDescriptor;
 use wgpu::util::DeviceExt;
@@ -21,8 +13,18 @@ use wgpu::{
     TextureView,
 };
 
+const NUM_INSTANCES_PER_ROW: u32 = 10;
+const INSTANCE_DISPLACEMENT: Vec3 = vec3(
+    NUM_INSTANCES_PER_ROW as f32 * 0.5,
+    0.0,
+    NUM_INSTANCES_PER_ROW as f32 * 0.5,
+);
+
 pub struct Pipeline {
     pipeline: wgpu::RenderPipeline,
+    cubes: Vec<Cube>,
+    cubes_buffer: wgpu::Buffer,
+
     uniforms: wgpu::Buffer,
     uniform_bind_group: wgpu::BindGroup,
     vertices: wgpu::Buffer,
@@ -30,20 +32,6 @@ pub struct Pipeline {
     curr_uniform: Uniforms,
     camera: Camera,
     depth_view: wgpu::TextureView,
-}
-
-#[derive(Pod, Zeroable, Copy, Clone, Debug)]
-#[repr(C)]
-struct Vertex3D {
-    position: glam::Vec4,
-    color: [f32; 4],
-}
-
-fn v3d(pos: glam::Vec3, color: Color) -> Vertex3D {
-    Vertex3D {
-        position: glam::vec4(pos.x, pos.y, pos.z, 1.0),
-        color: color.into_linear(),
-    }
 }
 
 #[derive(Copy, Clone)]
@@ -56,12 +44,12 @@ unsafe impl Zeroable for Indices {}
 impl Indices {
     fn new() -> Self {
         Self([
-            0, 1, 2, 0, 3, 2, //front
-            0, 4, 1, 1, 5, 4, //left
-            4, 5, 6, 6, 7, 4, //back
-            7, 3, 2, 2, 6, 7, //right
-            0, 3, 7, 7, 4, 0, //bottom
-            1, 2, 6, 6, 5, 1, //top
+            0, 1, 2, 2, 3, 0, //front
+            4, 5, 6, 6, 7, 4, //left
+            8, 9, 10, 10, 11, 8, //back
+            12, 13, 14, 14, 15, 12, //right
+            16, 17, 18, 18, 19, 16, //bottom
+            20, 21, 22, 22, 23, 20, //top
         ])
     }
 }
@@ -69,7 +57,7 @@ impl Indices {
 #[derive(Copy, Clone, Pod, Zeroable)]
 #[repr(C)]
 struct Uniforms {
-    projection: glam::Mat4,
+    camera_projection: glam::Mat4,
     time: f32,
     _padding: [f32; 3],
 }
@@ -77,66 +65,14 @@ struct Uniforms {
 impl Uniforms {
     pub fn new() -> Self {
         Self {
-            projection: glam::Mat4::IDENTITY,
+            camera_projection: glam::Mat4::IDENTITY,
             time: 0.0,
             _padding: [0.0; 3],
         }
     }
 
     pub fn update(&mut self, camera: &Camera) {
-        self.projection = camera.build_view_proj_matrix();
-    }
-}
-
-#[derive(Clone, Copy, Pod, Zeroable, Debug)]
-#[repr(C)]
-struct Cube {
-    vertices: [Vertex3D; 8],
-    dir: Vec3,
-    _padding: f32,
-}
-
-impl Cube {
-    fn new(dir: Vec3) -> Self {
-        Self {
-            vertices: [
-                //front vertices
-                v3d(
-                    vec3(-1.0, -1.0, 1.0),
-                    Color::from_rgba8(75, 118, 156, 0.8),
-                ),
-                v3d(
-                    vec3(-1.0, 1.0, 1.0),
-                    Color::from_rgba8(179, 245, 255, 0.8),
-                ),
-                v3d(vec3(1.0, 1.0, 1.0), Color::from_rgba8(179, 245, 255, 0.8)),
-                v3d(vec3(1.0, -1.0, 1.0), Color::from_rgba8(75, 118, 156, 0.8)),
-                //back vertices
-                v3d(
-                    vec3(-1.0, -1.0, -1.0),
-                    Color::from_rgba8(48, 86, 120, 0.8),
-                ),
-                v3d(
-                    vec3(-1.0, 1.0, -1.0),
-                    Color::from_rgba8(115, 208, 222, 0.8),
-                ),
-                v3d(
-                    vec3(1.0, 1.0, -1.0),
-                    Color::from_rgba8(115, 208, 222, 0.8),
-                ),
-                v3d(vec3(1.0, -1.0, -1.0), Color::from_rgba8(48, 86, 120, 0.8)),
-            ],
-            dir,
-            _padding: 0.0,
-        }
-    }
-
-    fn scale(&mut self, scale: f32) {
-        for v in self.vertices.iter_mut() {
-            v.position.x *= scale;
-            v.position.y *= scale;
-            v.position.z *= scale;
-        }
+        self.camera_projection = camera.build_view_proj_matrix();
     }
 }
 
@@ -146,9 +82,38 @@ impl Pipeline {
         format: wgpu::TextureFormat,
         target_size: Size<u32>,
     ) -> Box<dyn Program + 'static> {
+        let cubes = (0..NUM_INSTANCES_PER_ROW)
+            .flat_map(|z| {
+                (0..NUM_INSTANCES_PER_ROW).map(move |x| {
+                    let position =
+                        vec3(x as f32, 0.0, z as f32) - INSTANCE_DISPLACEMENT;
+                    let rotation = if position == Vec3::ZERO {
+                        glam::Quat::from_axis_angle(Vec3::Z, 0.0)
+                    } else {
+                        glam::Quat::from_axis_angle(position.normalize(), 45.0)
+                    };
+
+                    Cube {
+                        rotation,
+                        position,
+                        _padding: 0.0,
+                    }
+                })
+            })
+            .collect::<Vec<_>>();
+
+        let raw_cubes = cubes.iter().map(Cube::to_raw).collect::<Vec<_>>();
+
+        let cubes_buffer =
+            device.create_buffer_init(&BufferInitDescriptor {
+                label: Some("cubes instance buffer"),
+                contents: bytemuck::cast_slice(&raw_cubes),
+                usage: wgpu::BufferUsages::VERTEX,
+            });
+
         let vertices = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("cubes vertex buffer"),
-            size: std::mem::size_of::<[Vertex3D; 8]>() as u64, //allocate enough space for 100 cubes
+            size: std::mem::size_of::<[Vertex3D; 24]>() as u64, //allocate enough space for 100 cubes
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
@@ -195,6 +160,7 @@ impl Pipeline {
                 }],
             });
 
+        //TODO resize with window size
         let depth_texture = device.create_texture(&wgpu::TextureDescriptor {
             label: Some("cubes depth texture"),
             size: wgpu::Extent3d {
@@ -206,7 +172,8 @@ impl Pipeline {
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
             format: wgpu::TextureFormat::Depth32Float,
-            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+            usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+                | wgpu::TextureUsages::TEXTURE_BINDING,
             view_formats: &[wgpu::TextureFormat::Depth32Float],
         });
 
@@ -235,16 +202,7 @@ impl Pipeline {
                 vertex: wgpu::VertexState {
                     module: &shader,
                     entry_point: "vs_main",
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vertex3D>() as u64,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![
-                            //position
-                            0 => Float32x4,
-                            //color
-                            1 => Float32x4,
-                        ],
-                    }],
+                    buffers: &[Vertex3D::desc(), CubeRaw::desc()],
                 },
                 primitive: wgpu::PrimitiveState {
                     topology: wgpu::PrimitiveTopology::TriangleList,
@@ -258,7 +216,7 @@ impl Pipeline {
                 depth_stencil: Some(wgpu::DepthStencilState {
                     format: wgpu::TextureFormat::Depth32Float,
                     depth_write_enabled: false,
-                    depth_compare: wgpu::CompareFunction::Less,
+                    depth_compare: wgpu::CompareFunction::LessEqual,
                     stencil: wgpu::StencilState::default(),
                     bias: wgpu::DepthBiasState::default(),
                 }),
@@ -272,18 +230,7 @@ impl Pipeline {
                     entry_point: "fs_main",
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
-                        blend: Some(wgpu::BlendState {
-                            color: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::SrcAlpha,
-                                dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
-                                operation: wgpu::BlendOperation::Add,
-                            },
-                            alpha: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::Src,
-                                dst_factor: wgpu::BlendFactor::Dst,
-                                operation: wgpu::BlendOperation::Subtract,
-                            },
-                        }),
+                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                         write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
@@ -292,6 +239,8 @@ impl Pipeline {
 
         Box::new(Self {
             pipeline,
+            cubes,
+            cubes_buffer,
             uniforms,
             uniform_bind_group,
             vertices,
@@ -313,9 +262,6 @@ impl Program for Pipeline {
         _transformation: Transformation,
         time: Duration,
     ) {
-        let mut cube = Cube::new(Vec3::Z);
-        cube.scale(0.5);
-
         self.curr_uniform.time = time.as_secs_f32();
 
         queue.write_buffer(
@@ -328,7 +274,7 @@ impl Program for Pipeline {
         queue.write_buffer(
             &self.vertices,
             0,
-            bytemuck::bytes_of(&cube.vertices),
+            bytemuck::bytes_of(&Cube::vertices(0.2)),
         );
     }
 
@@ -337,10 +283,10 @@ impl Program for Pipeline {
         encoder: &mut CommandEncoder,
         _device: &Device,
         target: &TextureView,
-        clear_color: Option<Color>,
+        _clear_color: Option<Color>,
         _scale_factor: f32,
         _target_size: Size<u32>,
-    ) -> RenderState {
+    ) -> RenderStatus {
         let mut render_pass =
             encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("cubes render_pass)"),
@@ -348,20 +294,17 @@ impl Program for Pipeline {
                     view: target,
                     resolve_target: None,
                     ops: wgpu::Operations {
-                        load: match clear_color {
-                            Some(background_color) => wgpu::LoadOp::Clear({
-                                let [r, g, b, a] =
-                                    background_color.into_linear();
+                        load: wgpu::LoadOp::Clear({
+                            let [r, g, b, a] =
+                                Color::from_rgb8(35, 70, 120).into_linear();
 
-                                wgpu::Color {
-                                    r: f64::from(r),
-                                    g: f64::from(g),
-                                    b: f64::from(b),
-                                    a: f64::from(a),
-                                }
-                            }),
-                            None => wgpu::LoadOp::Load,
-                        },
+                            wgpu::Color {
+                                r: f64::from(r),
+                                g: f64::from(g),
+                                b: f64::from(b),
+                                a: f64::from(a),
+                            }
+                        }),
                         store: true,
                     },
                 })],
@@ -382,8 +325,9 @@ impl Program for Pipeline {
         render_pass
             .set_index_buffer(self.indices.slice(..), IndexFormat::Uint16);
         render_pass.set_vertex_buffer(0, self.vertices.slice(..));
-        render_pass.draw_indexed(0..36, 0, 0..1);
+        render_pass.set_vertex_buffer(1, self.cubes_buffer.slice(..));
+        render_pass.draw_indexed(0..36, 0, 0..self.cubes.len() as _);
 
-        RenderState::Dirty
+        RenderStatus::RequestRedraw
     }
 }

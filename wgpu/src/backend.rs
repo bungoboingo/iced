@@ -16,7 +16,7 @@ use crate::image;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use iced_graphics::custom::{Program, RenderState};
+use iced_graphics::custom::{Program, RenderStatus};
 
 pub(crate) type Pipelines = HashMap<u64, Box<dyn Program + 'static>>;
 
@@ -90,7 +90,7 @@ impl Backend {
         primitives: &[Primitive],
         viewport: &Viewport,
         overlay_text: &[T],
-    ) -> RenderState {
+    ) -> RenderStatus {
         log::debug!("Drawing");
         #[cfg(feature = "tracing")]
         let _ = info_span!("Wgpu::Backend", "PRESENT").entered();
@@ -260,10 +260,10 @@ impl Backend {
         scale_factor: f32,
         target_size: Size<u32>,
         layers: &[Layer<'_>],
-    ) -> RenderState {
+    ) -> RenderStatus {
         use std::mem::ManuallyDrop;
 
-        let mut render_state = RenderState::Clean;
+        let mut render_state = RenderStatus::None;
         let mut quad_layer = 0;
         let mut triangle_layer = 0;
         #[cfg(any(feature = "image", feature = "svg"))]

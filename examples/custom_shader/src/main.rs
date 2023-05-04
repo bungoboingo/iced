@@ -1,5 +1,6 @@
 mod camera;
 mod cubes;
+mod cube;
 
 use crate::cubes::Pipeline;
 use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
@@ -25,7 +26,7 @@ impl Application for Example {
     }
 
     fn title(&self) -> String {
-        "Example".to_string()
+        "Iced Cubes".to_string()
     }
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {

@@ -13,7 +13,7 @@ pub struct Camera {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            eye: vec3(0.0, 1.0, 2.0),
+            eye: vec3(0.0, 2.0, 3.0),
             target: glam::Vec3::ZERO,
             up: glam::Vec3::Y,
             aspect: 1024.0/768.0,

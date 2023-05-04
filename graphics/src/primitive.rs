@@ -2,12 +2,9 @@ use iced_core::alignment;
 use iced_core::image;
 use iced_core::svg;
 use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
-use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
-use std::hash::{Hash, Hasher};
 
 use crate::custom::Program;
-use crate::{custom, Transformation};
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
 

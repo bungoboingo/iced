@@ -1,19 +1,18 @@
 //! A custom shader widget for wgpu applications.
-use crate::{Backend, Primitive, Transformation};
+use crate::{Backend, Primitive};
 use iced_core::layout::{Limits, Node};
 use iced_core::renderer::Style;
 use iced_core::widget::Tree;
 use iced_core::{
-    layout, Color, Element, Layout, Length, Point, Rectangle, Size, Widget,
+    layout, Element, Layout, Length, Point, Rectangle, Size, Widget,
 };
-use std::any::Any;
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
 
 mod program;
 use crate::primitive::CustomPipeline;
-pub use program::{Program, RenderState};
+pub use program::{Program, RenderStatus};
 
 pub struct Custom {
     width: Length,
@@ -85,9 +84,9 @@ impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Custom {
 
     fn draw(
         &self,
-        tree: &Tree,
+        _tree: &Tree,
         renderer: &mut crate::Renderer<B, T>,
-        theme: &T,
+        _theme: &T,
         _style: &Style,
         layout: Layout<'_>,
         _cursor_position: Point,
