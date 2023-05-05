@@ -42,7 +42,7 @@ pub mod image;
 pub use antialiasing::Antialiasing;
 pub use backend::Backend;
 pub use compositor::Compositor;
-pub use custom::Custom;
+pub use custom::Shader;
 pub use error::Error;
 pub use primitive::Primitive;
 pub use renderer::Renderer;

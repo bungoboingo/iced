@@ -14,7 +14,7 @@ mod program;
 use crate::primitive::CustomPipeline;
 pub use program::{Program, RenderStatus};
 
-pub struct Custom {
+pub struct Shader {
     width: Length,
     height: Length,
     init: fn(
@@ -25,13 +25,13 @@ pub struct Custom {
     id: u64,
 }
 
-impl Debug for Custom {
+impl Debug for Shader {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "custom_shader_widget({:?})", self.id)
     }
 }
 
-impl Custom {
+impl Shader {
     pub fn new(
         init: fn(
             device: &wgpu::Device,
@@ -62,7 +62,7 @@ impl Custom {
     }
 }
 
-impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Custom {
+impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Shader {
     fn width(&self) -> Length {
         self.width
     }
@@ -108,12 +108,12 @@ impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Custom {
     }
 }
 
-impl<'a, M, B, T> From<Custom> for Element<'a, M, crate::Renderer<B, T>>
+impl<'a, M, B, T> From<Shader> for Element<'a, M, crate::Renderer<B, T>>
 where
     M: 'a,
     B: Backend,
 {
-    fn from(custom: Custom) -> Element<'a, M, crate::Renderer<B, T>> {
+    fn from(custom: Shader) -> Element<'a, M, crate::Renderer<B, T>> {
         Element::new(custom)
     }
 }

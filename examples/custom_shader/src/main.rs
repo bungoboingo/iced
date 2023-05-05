@@ -4,7 +4,7 @@ mod cube;
 
 use crate::cubes::Pipeline;
 use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
-use iced_graphics::Custom;
+use iced_graphics::Shader;
 
 fn main() -> iced::Result {
     Example::run(iced::Settings::default())
@@ -36,7 +36,7 @@ impl Application for Example {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
-        Custom::new(Pipeline::init, 0)
+        Shader::new(Pipeline::init, 0)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
