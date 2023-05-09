@@ -1,4 +1,4 @@
-use glam::{mat4, vec3, vec4};
+use glam::{mat4, Mat4, vec3, vec4};
 use wgpu::BindGroupEntry;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 
@@ -93,6 +93,10 @@ impl Camera {
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
         let proj = glam::Mat4::perspective_rh(self.fov_y, self.aspect, self.near, self.far);
 
-        return OPENGL_TO_WGPU_MATRIX * proj * view;
+        let mat = OPENGL_TO_WGPU_MATRIX * proj * view;
+        println!("mat: {mat:?}");
+        let test = mat.mul_vec4(vec4(0.5, 0.5, 0.5, 1.0));
+        println!("Test: {test:?}");
+        return mat;
     }
 }

@@ -9,16 +9,14 @@ use iced::advanced::{layout, Layout, Widget};
 use iced::{Color, Element, Length, Point, Rectangle, Size};
 use iced_graphics::primitive::{CustomPipeline, Renderable};
 use iced_graphics::{Primitive, Transformation};
-use std::ops::Range;
+use std::ops::{Range, RangeInclusive};
+use rand::{Rng, thread_rng};
 use wgpu::{CommandEncoder, Device, Queue, TextureView};
 
 pub struct Graph3D {
     id: u64,
     width: Length,
     height: Length,
-    x_axis: Axis,
-    y_axis: Axis,
-    z_axis: Axis,
 }
 
 impl Graph3D {
@@ -27,24 +25,29 @@ impl Graph3D {
             id: 0,
             width: Length::Fill,
             height: Length::Fill,
-            x_axis: Default::default(),
-            y_axis: Default::default(),
-            z_axis: Default::default(),
         }
     }
 }
 
 pub struct Axis {
-    scale: f32,
-    range: Range<f32>,
+    pub range: RangeInclusive<f32>,
+    pub step: f32,
 }
 
 impl Default for Axis {
     fn default() -> Self {
         Self {
-            scale: 1.0,
-            range: 0.0..100.0,
+            range: 0.0..=10.0,
+            step: 1.0,
         }
+    }
+}
+
+impl Axis {
+    pub fn rnd_step(&self) -> f32 {
+        let num_steps = (self.range.end() / self.step) as usize;
+        let rnd = thread_rng().gen_range(0..=num_steps);
+        (rnd as f32) * self.step
     }
 }
 
@@ -53,6 +56,9 @@ struct State {
     camera: Camera,
     camera_uniforms: camera::Uniforms,
     camera_uniforms_raw: util::uniforms::Uniforms,
+    x_axis: Axis,
+    y_axis: Axis,
+    z_axis: Axis,
 }
 
 impl State {
@@ -64,6 +70,7 @@ impl State {
         let camera = Camera::default();
         let mut camera_uniforms = camera::Uniforms::new();
         camera_uniforms.update(&camera);
+
         let camera_uniforms_raw = camera_uniforms.raw(device);
 
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
@@ -72,11 +79,29 @@ impl State {
             push_constant_ranges: &[],
         });
 
+        let x_axis = Axis {
+            range: 0.0..=5.0,
+            step: 0.5,
+        };
+
+        let y_axis = Axis {
+            range: 0.0..=5.0,
+            step: 0.5,
+        };
+
+        let z_axis = Axis {
+            range: 0.0..=1.0,
+            step: 0.1,
+        };
+
         Box::new(Self {
-            mesh_3d: Mesh3D::gen_rnd(device, format, &layout),
+            mesh_3d: Mesh3D::gen_rnd(&x_axis, &y_axis, &z_axis, device, format, &layout),
             camera: Default::default(),
             camera_uniforms,
             camera_uniforms_raw,
+            x_axis,
+            y_axis,
+            z_axis,
         })
     }
 }
@@ -85,11 +110,12 @@ impl Renderable for State {
     fn prepare(
         &mut self,
         _device: &Device,
-        _queue: &Queue,
+        queue: &Queue,
         _encoder: &mut CommandEncoder,
         _scale_factor: f32,
         _transformation: Transformation,
     ) {
+        self.mesh_3d.prepare(queue);
     }
 
     fn render(
