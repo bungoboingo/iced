@@ -10,6 +10,7 @@ use iced::{Color, Element, Length, Point, Rectangle, Size};
 use iced_graphics::primitive::{CustomPipeline, Renderable};
 use iced_graphics::{Primitive, Transformation};
 use std::ops::{Range, RangeInclusive};
+use glam::vec2;
 use rand::{Rng, thread_rng};
 use wgpu::{CommandEncoder, Device, Queue, TextureView};
 
@@ -54,8 +55,6 @@ impl Axis {
 struct State {
     mesh_3d: Mesh3D,
     camera: Camera,
-    camera_uniforms: camera::Uniforms,
-    camera_uniforms_raw: util::uniforms::Uniforms,
     x_axis: Axis,
     y_axis: Axis,
     z_axis: Axis,
@@ -65,17 +64,15 @@ impl State {
     fn init(
         device: &wgpu::Device,
         format: wgpu::TextureFormat,
-        _target_size: Size<u32>,
+        target_size: Size<u32>,
     ) -> Box<dyn Renderable + 'static> {
         let camera = Camera::default();
         let mut camera_uniforms = camera::Uniforms::new();
         camera_uniforms.update(&camera);
 
-        let camera_uniforms_raw = camera_uniforms.raw(device);
-
         let layout = device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("graph_3d.pipeline_layout_descriptor"),
-            bind_group_layouts: &[&camera_uniforms_raw.bind_group_layout],
+            bind_group_layouts: &[&camera_uniforms.],
             push_constant_ranges: &[],
         });
 
@@ -97,8 +94,7 @@ impl State {
         Box::new(Self {
             mesh_3d: Mesh3D::gen_rnd(&x_axis, &y_axis, &z_axis, device, format, &layout),
             camera: Default::default(),
-            camera_uniforms,
-            camera_uniforms_raw,
+            uniforms,
             x_axis,
             y_axis,
             z_axis,
