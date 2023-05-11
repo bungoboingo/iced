@@ -1,46 +1,31 @@
 use crate::util;
-use glam::{mat4, vec3, vec4, Mat4};
+use glam::{mat4, vec3, vec4, Mat4, Vec3};
 use rand::distributions::Uniform;
 use wgpu::util::{BufferInitDescriptor, DeviceExt};
 use wgpu::BindGroupEntry;
 
-pub struct Camera {
-    eye: glam::Vec3,
-    target: glam::Vec3,
-    up: glam::Vec3,
-    aspect: f32,
-    fov_y: f32,
-    near: f32,
-    far: f32,
+pub struct CameraBundle {
+    pub camera: Camera,
+    pub uniforms: Uniforms,
+    pub uniform_buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+    pub uniform_layout: wgpu::BindGroupLayout,
+    pub controller: Controller,
 }
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
-#[repr(C)]
-pub struct Uniforms {
-    projection: glam::Mat4,
-}
+impl CameraBundle {
+    pub fn new(device: &wgpu::Device) -> Self {
+        let camera = Camera::default();
+        let mut uniforms = Uniforms::new();
+        uniforms.update(&camera);
 
-impl Uniforms {
-    pub fn new() -> Self {
-        Self {
-            projection: glam::Mat4::IDENTITY,
-        }
-    }
-
-    pub fn update(&mut self, camera: &Camera) {
-        self.projection = camera.build_view_proj_matrix();
-    }
-
-    pub fn buffer(&self) -> wgpu::Buffer {
-        device.create_buffer_init(&BufferInitDescriptor {
+        let uniform_buffer = device.create_buffer_init(&BufferInitDescriptor {
             label: Some("graph_3d.camera.uniform_buffer"),
-            contents: bytemuck::bytes_of(self),
+            contents: bytemuck::bytes_of(&uniforms),
             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-        })
-    }
+        });
 
-    pub fn bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        let uniform_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("graph_3d.camera.uniform_bind_group_layout"),
             entries: &[wgpu::BindGroupLayoutEntry {
                 binding: 0,
@@ -52,7 +37,51 @@ impl Uniforms {
                 },
                 count: None,
             }],
-        })
+        });
+
+        let bind_group = Uniforms::bind_group(device, &uniform_layout, &uniform_buffer);
+
+        Self {
+            camera: Camera::default(),
+            uniforms,
+            uniform_buffer,
+            bind_group,
+            uniform_layout,
+            controller: Controller::default(),
+        }
+    }
+}
+
+pub struct Camera {
+    position: Vec3,
+    target: Vec3,
+    up: Vec3,
+    aspect: f32,
+    fov_y: f32,
+    near: f32,
+    far: f32,
+}
+
+#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable)]
+#[repr(C)]
+pub struct Uniforms {
+    projection: Mat4,
+    position: Vec3,
+    _padding: f32,
+}
+
+impl Uniforms {
+    pub fn new() -> Self {
+        Self {
+            position: Vec3::ZERO,
+            projection: Mat4::IDENTITY,
+            _padding: 0.0,
+        }
+    }
+
+    pub fn update(&mut self, camera: &Camera) {
+        self.position = camera.position;
+        self.projection = camera.build_view_proj_matrix();
     }
 
     pub fn bind_group(
@@ -62,7 +91,7 @@ impl Uniforms {
     ) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("graph_3d.camera.uniform_bind_group"),
-            layout: &bind_group_layout,
+            layout: &layout,
             entries: &[BindGroupEntry {
                 binding: 0,
                 resource: buffer.as_entire_binding(),
@@ -74,9 +103,9 @@ impl Uniforms {
 impl Default for Camera {
     fn default() -> Self {
         Self {
-            eye: vec3(0.0, 1.0, 2.0),
-            target: glam::Vec3::ZERO,
-            up: glam::Vec3::Y,
+            position: vec3(0.0, 1.0, 3.0),
+            target: Vec3::ZERO,
+            up: Vec3::Y,
             aspect: 1024.0 / 768.0,
             fov_y: 45.0,
             near: 0.1,
@@ -85,7 +114,7 @@ impl Default for Camera {
     }
 }
 
-pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
+pub const OPENGL_TO_WGPU_MATRIX: Mat4 = mat4(
     vec4(1.0, 0.0, 0.0, 0.0),
     vec4(0.0, 1.0, 0.0, 0.0),
     vec4(0.0, 0.0, 0.5, 0.0),
@@ -94,7 +123,7 @@ pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
 
 impl Camera {
     pub fn build_view_proj_matrix(&self) -> glam::Mat4 {
-        let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
+        let view = glam::Mat4::look_at_rh(self.position, self.target, self.up);
         let proj = glam::Mat4::perspective_rh(
             self.fov_y,
             self.aspect,
@@ -102,10 +131,19 @@ impl Camera {
             self.far,
         );
 
-        let mat = OPENGL_TO_WGPU_MATRIX * proj * view;
-        println!("mat: {mat:?}");
-        let test = mat.mul_vec4(vec4(0.5, 0.5, 0.5, 1.0));
-        println!("Test: {test:?}");
-        return mat;
+        return OPENGL_TO_WGPU_MATRIX * proj * view;
     }
+}
+
+#[derive(Default)]
+pub struct Controller {
+    pub w: bool,
+    pub a: bool,
+    pub s: bool,
+    pub d: bool,
+    pub right_mouse: bool,
+}
+
+impl Controller {
+
 }

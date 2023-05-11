@@ -1,4 +1,4 @@
-use iced::alignment;
+use iced::{alignment, Theme};
 use iced::theme;
 use iced::widget::{
     checkbox, column, container, horizontal_space, image, radio, row,
@@ -6,6 +6,7 @@ use iced::widget::{
 };
 use iced::widget::{Button, Column, Container, Slider};
 use iced::{Color, Element, Font, Length, Renderer, Sandbox, Settings};
+use iced::widget::text::Appearance;
 
 pub fn main() -> iced::Result {
     env_logger::init();
@@ -442,7 +443,9 @@ impl<'a> Step {
     fn text(size: u16, color: Color) -> Column<'a, StepMessage> {
         let size_section = column![
             "You can change its size:",
-            text(format!("This text is {size} pixels")).size(size),
+            text(format!("This text is {size} pixels")).size(size).font(
+                Font::with_name("Hello Kitty.otf")
+            ),
             slider(10..=70, size, StepMessage::TextSizeChanged),
         ]
         .padding(20)

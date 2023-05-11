@@ -1,95 +1,124 @@
+use std::collections::hash_set::Union;
+use bytemuck::{Pod, Zeroable};
 use crate::graph_3d::Axis;
 use glam::{vec3, Vec3};
 use iced::Size;
-use rand::{Rng, thread_rng};
-use wgpu::BufferAddress;
+use rand::{thread_rng, Rng};
+use wgpu::{BindGroupEntry, BufferAddress};
+use wgpu::util::DeviceExt;
+use crate::util::{cube, quad};
 
-pub struct Mesh3D {
-    pub pipeline: wgpu::RenderPipeline,
-    pub vertex_buffer: wgpu::Buffer,
-    pub vertices: [Vec3; 100], //hard-coded 100 for now
+pub struct Mesh3DBundle {
+    pub mesh_3d: Mesh3D,
+    pub instances: wgpu::Buffer,
+    pub vertices: wgpu::Buffer,
+    pub indices: wgpu::Buffer,
+    pub uniforms: Uniforms,
+    pub uniform_buffer: wgpu::Buffer,
+    pub bind_group: wgpu::BindGroup,
+    pub uniform_layout: wgpu::BindGroupLayout,
 }
 
-impl Mesh3D {
-    pub fn gen_rnd(
+impl Mesh3DBundle {
+    pub fn new(
         x_axis: &Axis,
         y_axis: &Axis,
         z_axis: &Axis,
         device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        layout: &wgpu::PipelineLayout,
+        size: Size<u32>,
     ) -> Self {
-        let vertex_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("graph_3d.mesh_3d.vertices"),
+        let uniforms = Uniforms {
+            resolution: [size.width, size.height],
+        };
+
+        let uniform_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("mesh_3d.uniform_buffer"),
+            contents: bytemuck::bytes_of(&uniforms),
+            usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+        });
+
+        let uniform_layout = device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+            label: Some("mesh_3d.uniform_bind_group_layout"),
+            entries: &[wgpu::BindGroupLayoutEntry {
+                binding: 0,
+                visibility: wgpu::ShaderStages::VERTEX,
+                ty: wgpu::BindingType::Buffer {
+                    ty: wgpu::BufferBindingType::Uniform,
+                    has_dynamic_offset: false,
+                    min_binding_size: None,
+                },
+                count: None,
+            }],
+        });
+
+        let bind_group = Uniforms::bind_group(device, &uniform_layout, &uniform_buffer);
+
+        // one instance is just a single vec3 position currently
+        let instances = device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("graph_3d.mesh_3d.instances"),
             size: std::mem::size_of::<Mesh3D>() as BufferAddress,
             usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
-        let shader =
-            device.create_shader_module(wgpu::ShaderModuleDescriptor {
-                label: Some("graph_3d.mesh_3d.shader"),
-                source: wgpu::ShaderSource::Wgsl(std::borrow::Cow::Borrowed(
-                    include_str!("../shaders/mesh_3d.wgsl"),
-                )),
-            });
+        let vertices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("graph_3d.mesh_3d.cube_vertices"),
+            contents: bytemuck::cast_slice(&cube::VERTICES),
+            usage: wgpu::BufferUsages::VERTEX,
+        });
 
-        let pipeline =
-            device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
-                label: Some("graph3d.mesh_3d.pipeline"),
-                layout: Some(layout),
-                vertex: wgpu::VertexState {
-                    module: &shader,
-                    entry_point: "vs_main",
-                    buffers: &[wgpu::VertexBufferLayout {
-                        array_stride: std::mem::size_of::<Vec3>() as u64,
-                        step_mode: wgpu::VertexStepMode::Vertex,
-                        attributes: &wgpu::vertex_attr_array![
-                            0 => Float32x3
-                        ],
-                    }],
-                },
-                primitive: wgpu::PrimitiveState {
-                    topology: wgpu::PrimitiveTopology::PointList,
-                    strip_index_format: None,
-                    front_face: Default::default(),
-                    cull_mode: None,
-                    unclipped_depth: false,
-                    polygon_mode: wgpu::PolygonMode::Fill,
-                    conservative: false,
-                },
-                depth_stencil: None,
-                multisample: Default::default(),
-                fragment: Some(wgpu::FragmentState {
-                    module: &shader,
-                    entry_point: "fs_main",
-                    targets: &[Some(wgpu::ColorTargetState {
-                        format,
-                        blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::ALL,
-                    })],
-                }),
-                multiview: None,
-            });
+        let indices = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+            label: Some("graph_3d.mesh_3d.cube_indices"),
+            contents: bytemuck::cast_slice(&cube::INDICES),
+            usage: wgpu::BufferUsages::INDEX,
+        });
 
         Self {
-            pipeline,
-            vertex_buffer,
-            vertices: std::array::from_fn(|index| {
-                vec3(
-                    x_axis.rnd_step(),
-                    y_axis.rnd_step(),
-                    z_axis.rnd_step(),
-                )
-            }),
+            mesh_3d: Mesh3D::gen_rnd(x_axis, y_axis, z_axis),
+            instances,
+            vertices,
+            indices,
+            uniforms,
+            uniform_buffer,
+            bind_group,
+            uniform_layout,
         }
     }
+}
 
-    pub fn prepare(&mut self, queue: &wgpu::Queue) {
-        queue.write_buffer(
-            &self.vertex_buffer,
-            0,
-            bytemuck::cast_slice(&self.vertices),
-        );
+#[derive(Copy, Clone, Pod, Zeroable)]
+#[repr(C)]
+pub struct Uniforms {
+    pub resolution: [u32; 2],
+}
+
+impl Uniforms {
+    pub fn bind_group(
+        device: &wgpu::Device,
+        layout: &wgpu::BindGroupLayout,
+        buffer: &wgpu::Buffer,
+    ) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("mesh_3d.uniform_bind_group"),
+            layout,
+            entries: &[BindGroupEntry {
+                binding: 0,
+                resource: buffer.as_entire_binding(),
+            }],
+        })
+    }
+}
+
+pub struct Mesh3D {
+    pub vertices: [Vec3; 100], //hard-coded 100 for now
+}
+
+impl Mesh3D {
+    pub fn gen_rnd(x_axis: &Axis, y_axis: &Axis, z_axis: &Axis) -> Self {
+        Self {
+            vertices: std::array::from_fn(|index| {
+                vec3(x_axis.rnd_step(), y_axis.rnd_step(), z_axis.rnd_step())
+            }),
+        }
     }
 }

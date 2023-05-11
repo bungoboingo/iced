@@ -1,40 +1,57 @@
-struct Uniforms {
+struct Camera {
     projection: mat4x4<f32>,
+    position: vec3<f32>,
 }
 
 @group(0) @binding(0)
-var<uniform> uniforms: Uniforms;
+var<uniform> camera: Camera;
+@group(1) @binding(0)
+var<uniform> resolution: vec2<f32>;
 
 struct Input {
-    @location(0) position: vec3<f32>,
+    @location(0) cube_center: vec3<f32>,
+    @location(1) cube_vertex: vec3<f32>,
+    @location(2) cube_color: vec3<f32>,
 }
 
 struct Output {
-    @builtin(position) frame_position: vec4<f32>,
-    @location(0) vertex_position: vec3<f32>,
+    @builtin(position) clip_position: vec4<f32>,
+    @location(1) color: vec3<f32>,
+}
+
+/// Calculates the length of the ray from the origin (the camera position) to the sphere surface, or
+/// -1.0 in the case of a miss.
+fn sphere_intersect(ray_origin: vec3<f32>, ray_dir: vec3<f32>, sph: vec4<f32>) -> f32 {
+    let oc = ray_origin - sph.xyz;
+    let b = dot(oc, ray_dir);
+    let c = dot(oc, oc) - sph.w * sph.w;
+    var h = b * b - c;
+    if (h < 0.0) {
+        //miss
+        return -1.0;
+    }
+    //hit!
+    h = sqrt(h);
+    return -b -h;
 }
 
 @vertex
 fn vs_main(input: Input) -> Output {
     var output: Output;
-    output.frame_position = uniforms.projection * vec4<f32>(input.position, 1.0);
-    output.vertex_position = input.position;
+
+    output.clip_position = camera.projection * vec4<f32>(input.cube_vertex * 0.5 + input.cube_center.xyz, 1.0);
+    output.color = input.cube_color;
+
+// * sphere_intersect(
+//        camera.position, //ray origin
+//        normalize(output.clip_position.xyz / output.clip_position.w), //ray direction
+//        vec4<f32>(input.cube_center, 1.0),
+//    );
 
     return output;
 }
 
 @fragment
 fn fs_main(output: Output) -> @location(0) vec4<f32> {
-    let radius = 50.0;
-    let red = vec3<f32>(1.0, 0.0, 0.0);
-
-    let dist = distance(output.vertex_position, output.frame_position.xyz);
-    if (dist > radius) {
-        discard;
-    }
-
-    let d = dist / radius;
-    let color = mix(red, vec3<f32>(0.0), step(1.0 - 0.1, d));
-
-    return vec4<f32>(color, 1.0);
+    return vec4<f32>(output.color, 1.0);
 }
