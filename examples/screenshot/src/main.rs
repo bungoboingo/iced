@@ -284,6 +284,7 @@ impl container::StyleSheet for ScreenshotDisplayContainer {
             border_radius: 5.0,
             border_width: 4.0,
             border_color: style.palette().primary,
+            blur: 0.0,
         }
     }
 }

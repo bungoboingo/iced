@@ -372,6 +372,7 @@ impl container::StyleSheet for Theme {
                     border_radius: 2.0,
                     border_width: 0.0,
                     border_color: Color::TRANSPARENT,
+                    blur: 0.0,
                 }
             }
             Container::Custom(custom) => custom.appearance(self),

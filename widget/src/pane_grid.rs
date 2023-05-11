@@ -831,7 +831,7 @@ pub fn draw<Renderer, T>(
             cursor_position
                 - Point::new(bounds.x + origin.x, bounds.y + origin.y),
             |renderer| {
-                renderer.with_layer(bounds, |renderer| {
+                renderer.with_layer(bounds, None,|renderer| {
                     draw_pane(
                         pane,
                         renderer,

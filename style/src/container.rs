@@ -14,6 +14,8 @@ pub struct Appearance {
     pub border_width: f32,
     /// The border [`Color`] of the container.
     pub border_color: Color,
+    /// The blur radius of the container.
+    pub blur: f32,
 }
 
 impl std::default::Default for Appearance {
@@ -24,6 +26,7 @@ impl std::default::Default for Appearance {
             border_radius: 0.0,
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
+            blur: 0.0,
         }
     }
 }

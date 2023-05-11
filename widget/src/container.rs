@@ -241,21 +241,42 @@ where
     ) {
         let style = theme.appearance(&self.style);
 
-        draw_background(renderer, &style, layout.bounds());
+        if style.blur > 0.0 {
+            println!("Container has a blur.... preparing the blur layer");
+            renderer.with_layer(layout.bounds(), Some(style.blur), |renderer| {
+                draw_background(renderer, &style, layout.bounds());
 
-        self.content.as_widget().draw(
-            &tree.children[0],
-            renderer,
-            theme,
-            &renderer::Style {
-                text_color: style
-                    .text_color
-                    .unwrap_or(renderer_style.text_color),
-            },
-            layout.children().next().unwrap(),
-            cursor_position,
-            viewport,
-        );
+                self.content.as_widget().draw(
+                    &tree.children[0],
+                    renderer,
+                    theme,
+                    &renderer::Style {
+                        text_color: style
+                            .text_color
+                            .unwrap_or(renderer_style.text_color),
+                    },
+                    layout.children().next().unwrap(),
+                    cursor_position,
+                    viewport,
+                );
+            })
+        } else {
+            draw_background(renderer, &style, layout.bounds());
+
+            self.content.as_widget().draw(
+                &tree.children[0],
+                renderer,
+                theme,
+                &renderer::Style {
+                    text_color: style
+                        .text_color
+                        .unwrap_or(renderer_style.text_color),
+                },
+                layout.children().next().unwrap(),
+                cursor_position,
+                viewport,
+            );
+        }
     }
 
     fn overlay<'b>(

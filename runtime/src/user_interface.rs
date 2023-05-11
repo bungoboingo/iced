@@ -487,7 +487,7 @@ where
 
                         let overlay_bounds = layout.bounds();
 
-                        renderer.with_layer(overlay_bounds, |renderer| {
+                        renderer.with_layer(overlay_bounds, None, |renderer| {
                             overlay.draw(
                                 renderer,
                                 theme,

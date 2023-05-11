@@ -70,14 +70,14 @@ where
         layout
     }
 
-    fn with_layer(&mut self, bounds: Rectangle, f: impl FnOnce(&mut Self)) {
+    fn with_layer(&mut self, bounds: Rectangle, blur: Option<f32>, f: impl FnOnce(&mut Self)) {
         let current = std::mem::take(&mut self.primitives);
 
         f(self);
 
         let layer = std::mem::replace(&mut self.primitives, current);
 
-        self.primitives.push(Primitive::group(layer).clip(bounds));
+        self.primitives.push(Primitive::group(layer).clip(blur, bounds));
     }
 
     fn with_translation(

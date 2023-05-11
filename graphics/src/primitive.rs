@@ -124,6 +124,8 @@ pub enum Primitive {
     Clip {
         /// The bounds of the clip
         bounds: Rectangle,
+        /// The optional blur of the clip
+        blur: Option<f32>,
         /// The content of the clip
         content: Box<Primitive>,
     },
@@ -152,9 +154,10 @@ impl Primitive {
     }
 
     /// Creates a [`Primitive::Clip`].
-    pub fn clip(self, bounds: Rectangle) -> Self {
+    pub fn clip(self, blur: Option<f32>, bounds: Rectangle) -> Self {
         Self::Clip {
             bounds,
+            blur,
             content: Box::new(self),
         }
     }

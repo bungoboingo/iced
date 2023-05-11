@@ -28,7 +28,7 @@ pub trait Renderer: Sized {
     /// Draws the primitives recorded in the given closure in a new layer.
     ///
     /// The layer will clip its contents to the provided `bounds`.
-    fn with_layer(&mut self, bounds: Rectangle, f: impl FnOnce(&mut Self));
+    fn with_layer(&mut self, bounds: Rectangle, blur: Option<f32>, f: impl FnOnce(&mut Self));
 
     /// Applies a `translation` to the primitives recorded in the given closure.
     fn with_translation(
