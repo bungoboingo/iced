@@ -45,6 +45,7 @@ pub mod window;
 pub mod geometry;
 
 mod backend;
+mod blur;
 mod buffer;
 mod offscreen;
 mod quad;

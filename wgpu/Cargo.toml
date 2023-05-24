@@ -52,6 +52,7 @@ features = ["glam"]
 
 [dependencies.glam]
 version = "0.21.3"
+features = ["bytemuck"]
 
 [dependencies.lyon]
 version = "1.0"

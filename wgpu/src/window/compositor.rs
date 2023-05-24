@@ -174,6 +174,7 @@ pub fn present<Theme, T: AsRef<str>>(
                 &compositor.queue,
                 &mut encoder,
                 Some(background_color),
+                frame.texture.format(),
                 view,
                 primitives,
                 viewport,

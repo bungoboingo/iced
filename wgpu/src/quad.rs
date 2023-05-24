@@ -122,14 +122,14 @@ impl Pipeline {
         let vertices =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("iced_wgpu::quad vertex buffer"),
-                contents: bytemuck::cast_slice(&QUAD_VERTS),
+                contents: bytemuck::cast_slice(&VERTICES),
                 usage: wgpu::BufferUsages::VERTEX,
             });
 
         let indices =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("iced_wgpu::quad index buffer"),
-                contents: bytemuck::cast_slice(&QUAD_INDICES),
+                contents: bytemuck::cast_slice(&INDICES),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
@@ -268,7 +268,7 @@ impl Layer {
         render_pass.set_vertex_buffer(1, self.instances.slice(..));
 
         render_pass.draw_indexed(
-            0..QUAD_INDICES.len() as u32,
+            0..INDICES.len() as u32,
             0,
             0..self.instance_count as u32,
         );
@@ -277,13 +277,13 @@ impl Layer {
 
 #[repr(C)]
 #[derive(Clone, Copy, Zeroable, Pod)]
-pub struct Vertex {
+pub(crate) struct Vertex {
     _position: [f32; 2],
 }
 
-const QUAD_INDICES: [u16; 6] = [0, 1, 2, 0, 2, 3];
+pub(crate) const INDICES: [u16; 6] = [0, 1, 2, 0, 2, 3];
 
-const QUAD_VERTS: [Vertex; 4] = [
+pub(crate) const VERTICES: [Vertex; 4] = [
     Vertex {
         _position: [0.0, 0.0],
     },

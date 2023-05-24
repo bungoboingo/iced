@@ -1,9 +1,9 @@
-use crate::core::{Color, Font, Point, Size};
+use crate::core::{Color, Font, Point, Rectangle, Size};
 use crate::graphics::backend;
 use crate::graphics::{Primitive, Transformation, Viewport};
-use crate::quad;
 use crate::text;
 use crate::triangle;
+use crate::{blur, quad};
 use crate::{core, offscreen};
 use crate::{Layer, Settings};
 
@@ -24,6 +24,7 @@ pub struct Backend {
     quad_pipeline: quad::Pipeline,
     text_pipeline: text::Pipeline,
     triangle_pipeline: triangle::Pipeline,
+    blur_pipeline: blur::Pipeline,
 
     #[cfg(any(feature = "image", feature = "svg"))]
     image_pipeline: image::Pipeline,
@@ -44,6 +45,7 @@ impl Backend {
         let quad_pipeline = quad::Pipeline::new(device, format);
         let triangle_pipeline =
             triangle::Pipeline::new(device, format, settings.antialiasing);
+        let blur_pipeline = blur::Pipeline::new(device, format);
 
         #[cfg(any(feature = "image", feature = "svg"))]
         let image_pipeline = image::Pipeline::new(device, format);
@@ -53,6 +55,7 @@ impl Backend {
             text_pipeline,
             triangle_pipeline,
 
+            blur_pipeline,
             #[cfg(any(feature = "image", feature = "svg"))]
             image_pipeline,
 
@@ -71,6 +74,7 @@ impl Backend {
         queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         clear_color: Option<Color>,
+        format: wgpu::TextureFormat,
         frame: &wgpu::TextureView,
         primitives: &[Primitive],
         viewport: &Viewport,
@@ -105,9 +109,11 @@ impl Backend {
         ) {}
 
         self.render(
+            queue,
             device,
             encoder,
             frame,
+            format,
             clear_color,
             scale_factor,
             target_size,
@@ -148,6 +154,7 @@ impl Backend {
             queue,
             encoder,
             clear_color,
+            format,
             frame,
             primitives,
             viewport,
@@ -272,9 +279,11 @@ impl Backend {
 
     fn render(
         &mut self,
+        queue: &wgpu::Queue,
         device: &wgpu::Device,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
+        format: wgpu::TextureFormat,
         clear_color: Option<Color>,
         scale_factor: f32,
         target_size: Size<u32>,
@@ -288,7 +297,7 @@ impl Backend {
         let mut image_layer = 0;
         let mut text_layer = 0;
 
-        let mut render_pass = ManuallyDrop::new(encoder.begin_render_pass(
+        let mut pass = ManuallyDrop::new(encoder.begin_render_pass(
             &wgpu::RenderPassDescriptor {
                 label: Some("iced_wgpu::quad render pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -323,34 +332,42 @@ impl Backend {
                 return;
             }
 
-            if !layer.quads.is_empty() {
-                self.quad_pipeline
-                    .render(quad_layer, bounds, &mut render_pass);
+            if let Some(blur) = layer.blur {
+                println!("Blurring: {blur:?}..");
 
-                quad_layer += 1;
-            }
+                //first we kill the current render pass since we need a different target
+                let _ = ManuallyDrop::into_inner(pass);
 
-            if !layer.meshes.is_empty() {
-                let _ = ManuallyDrop::into_inner(render_pass);
+                // create the dimensions of the offscreen texture
+                let texture_extent = wgpu::Extent3d {
+                    width: bounds.width,
+                    height: bounds.height,
+                    depth_or_array_layers: 1,
+                };
 
-                self.triangle_pipeline.render(
-                    device,
-                    encoder,
-                    target,
-                    triangle_layer,
-                    target_size,
-                    &layer.meshes,
-                    scale_factor,
-                );
+                // then we create a new texture to render the layer's contents to,
+                // which is the size of the layer to blur
+                let texture = device.create_texture(&wgpu::TextureDescriptor {
+                    label: Some("iced_wgpu.blur.source_texture"),
+                    size: texture_extent,
+                    mip_level_count: 1,
+                    sample_count: 1,
+                    dimension: wgpu::TextureDimension::D2,
+                    format,
+                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                    view_formats: &[],
+                });
 
-                triangle_layer += 1;
+                let src_view = texture
+                    .create_view(&wgpu::TextureViewDescriptor::default());
 
-                render_pass = ManuallyDrop::new(encoder.begin_render_pass(
+                // now we reassign the render pass with the new texture as the view to write to
+                pass = ManuallyDrop::new(encoder.begin_render_pass(
                     &wgpu::RenderPassDescriptor {
-                        label: Some("iced_wgpu::quad render pass"),
+                        label: Some("iced_wgpu.blur.render_pass"),
                         color_attachments: &[Some(
                             wgpu::RenderPassColorAttachment {
-                                view: target,
+                                view: &src_view, //new!
                                 resolve_target: None,
                                 ops: wgpu::Operations {
                                     load: wgpu::LoadOp::Load,
@@ -361,30 +378,168 @@ impl Backend {
                         depth_stencil_attachment: None,
                     },
                 ));
-            }
 
-            #[cfg(any(feature = "image", feature = "svg"))]
-            {
-                if !layer.images.is_empty() {
-                    self.image_pipeline.render(
-                        image_layer,
-                        bounds,
-                        &mut render_pass,
+                //shift bounds to origin of new texture!
+                let adjusted_bounds = Rectangle::<u32> {
+                    x: 0,
+                    y: 0,
+                    width: bounds.width,
+                    height: bounds.height,
+                };
+
+                //instead of writing to the frame's surface, we will be writing to the new texture instead
+                if !layer.quads.is_empty() {
+                    self.quad_pipeline.render(quad_layer, adjusted_bounds, &mut pass);
+
+                    quad_layer += 1;
+                }
+
+                if !layer.meshes.is_empty() {
+                    // need to kill render pass as triangle pipeline must create its own
+                    let _ = ManuallyDrop::into_inner(pass);
+
+                    self.triangle_pipeline.render(
+                        device,
+                        encoder,
+                        &src_view,
+                        triangle_layer,
+                        Size::new(adjusted_bounds.width, adjusted_bounds.height),
+                        &layer.meshes,
+                        scale_factor,
                     );
 
-                    image_layer += 1;
+                    triangle_layer += 1;
+
+                    // recreate render pass... carry on..
+                    pass = ManuallyDrop::new(encoder.begin_render_pass(
+                        &wgpu::RenderPassDescriptor {
+                            label: Some("iced_wgpu.blur.render_pass"),
+                            color_attachments: &[Some(
+                                wgpu::RenderPassColorAttachment {
+                                    view: &src_view,
+                                    resolve_target: None,
+                                    ops: wgpu::Operations {
+                                        load: wgpu::LoadOp::Load,
+                                        store: true,
+                                    },
+                                },
+                            )],
+                            depth_stencil_attachment: None,
+                        },
+                    ));
                 }
-            }
 
-            if !layer.text.is_empty() {
-                self.text_pipeline
-                    .render(text_layer, bounds, &mut render_pass);
+                #[cfg(any(feature = "image", feature = "svg"))]
+                {
+                    if !layer.images.is_empty() {
+                        self.image_pipeline.render(
+                            image_layer,
+                            adjusted_bounds,
+                            &mut pass,
+                        );
 
-                text_layer += 1;
+                        image_layer += 1;
+                    }
+                }
+
+                if !layer.text.is_empty() {
+                    self.text_pipeline.render(text_layer, adjusted_bounds, &mut pass);
+
+                    text_layer += 1;
+                }
+
+                //drop current pass
+                let _ = ManuallyDrop::into_inner(pass);
+
+                // reassign the render pass, this time targeting the surface!
+                pass = ManuallyDrop::new(
+                    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+                        label: Some("iced_wgpu.blur.render_pass"),
+                        color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                            view: target,
+                            resolve_target: None,
+                            ops: wgpu::Operations {
+                                load: wgpu::LoadOp::Load,
+                                store: true,
+                            },
+                        })],
+                        depth_stencil_attachment: None,
+                    })
+                );
+
+                // now we pass the written texture to the blur pipeline
+                // and render the output to the frame's surface
+                self.blur_pipeline.render(
+                    queue,
+                    &mut pass,
+                    device,
+                    &src_view,
+                    blur,
+                    bounds.into(),
+                    target_size,
+                );
+            } else {
+                if !layer.quads.is_empty() {
+                    self.quad_pipeline.render(quad_layer, bounds, &mut pass);
+
+                    quad_layer += 1;
+                }
+
+                if !layer.meshes.is_empty() {
+                    let _ = ManuallyDrop::into_inner(pass);
+
+                    self.triangle_pipeline.render(
+                        device,
+                        encoder,
+                        target,
+                        triangle_layer,
+                        target_size,
+                        &layer.meshes,
+                        scale_factor,
+                    );
+
+                    triangle_layer += 1;
+
+                    pass = ManuallyDrop::new(encoder.begin_render_pass(
+                        &wgpu::RenderPassDescriptor {
+                            label: Some("iced_wgpu::quad render pass"),
+                            color_attachments: &[Some(
+                                wgpu::RenderPassColorAttachment {
+                                    view: target,
+                                    resolve_target: None,
+                                    ops: wgpu::Operations {
+                                        load: wgpu::LoadOp::Load,
+                                        store: true,
+                                    },
+                                },
+                            )],
+                            depth_stencil_attachment: None,
+                        },
+                    ));
+                }
+
+                #[cfg(any(feature = "image", feature = "svg"))]
+                {
+                    if !layer.images.is_empty() {
+                        self.image_pipeline.render(
+                            image_layer,
+                            bounds,
+                            &mut pass,
+                        );
+
+                        image_layer += 1;
+                    }
+                }
+
+                if !layer.text.is_empty() {
+                    self.text_pipeline.render(text_layer, bounds, &mut pass);
+
+                    text_layer += 1;
+                }
             }
         }
 
-        let _ = ManuallyDrop::into_inner(render_pass);
+        let _ = ManuallyDrop::into_inner(pass);
     }
 }
 

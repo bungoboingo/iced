@@ -102,49 +102,94 @@ where
 
         let bounds = layout.bounds();
 
-        {
-            let style = theme.appearance(&self.style);
+        let appearance = theme.appearance(&self.style);
 
-            container::draw_background(renderer, &style, bounds);
-        }
+        if appearance.blur > 0.0 {
+            println!("Container has a blur.... preparing the blur layer");
 
-        if let Some(title_bar) = &self.title_bar {
-            let mut children = layout.children();
-            let title_bar_layout = children.next().unwrap();
-            let body_layout = children.next().unwrap();
+            renderer.with_layer(bounds, Some(appearance.blur), |renderer| {
+                container::draw_background(renderer, &appearance, bounds);
 
-            let show_controls = bounds.contains(cursor_position);
+                if let Some(title_bar) = &self.title_bar {
+                    let mut children = layout.children();
+                    let title_bar_layout = children.next().unwrap();
+                    let body_layout = children.next().unwrap();
 
-            self.body.as_widget().draw(
-                &tree.children[0],
-                renderer,
-                theme,
-                style,
-                body_layout,
-                cursor_position,
-                viewport,
-            );
+                    let show_controls = bounds.contains(cursor_position);
 
-            title_bar.draw(
-                &tree.children[1],
-                renderer,
-                theme,
-                style,
-                title_bar_layout,
-                cursor_position,
-                viewport,
-                show_controls,
-            );
+                    self.body.as_widget().draw(
+                        &tree.children[0],
+                        renderer,
+                        theme,
+                        style,
+                        body_layout,
+                        cursor_position,
+                        viewport,
+                    );
+
+                    title_bar.draw(
+                        &tree.children[1],
+                        renderer,
+                        theme,
+                        style,
+                        title_bar_layout,
+                        cursor_position,
+                        viewport,
+                        show_controls,
+                    );
+                } else {
+                    self.body.as_widget().draw(
+                        &tree.children[0],
+                        renderer,
+                        theme,
+                        style,
+                        layout,
+                        cursor_position,
+                        viewport,
+                    );
+                }
+            })
         } else {
-            self.body.as_widget().draw(
-                &tree.children[0],
-                renderer,
-                theme,
-                style,
-                layout,
-                cursor_position,
-                viewport,
-            );
+            container::draw_background(renderer, &appearance, bounds);
+
+            if let Some(title_bar) = &self.title_bar {
+                let mut children = layout.children();
+                let title_bar_layout = children.next().unwrap();
+                let body_layout = children.next().unwrap();
+
+                let show_controls = bounds.contains(cursor_position);
+
+                self.body.as_widget().draw(
+                    &tree.children[0],
+                    renderer,
+                    theme,
+                    style,
+                    body_layout,
+                    cursor_position,
+                    viewport,
+                );
+
+                title_bar.draw(
+                    &tree.children[1],
+                    renderer,
+                    theme,
+                    style,
+                    title_bar_layout,
+                    cursor_position,
+                    viewport,
+                    show_controls,
+                );
+            } else {
+                self.body.as_widget().draw(
+                    &tree.children[0],
+                    renderer,
+                    theme,
+                    style,
+                    layout,
+                    cursor_position,
+                    viewport,
+                );
+            }
         }
     }
 

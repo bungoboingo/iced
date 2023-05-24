@@ -8,7 +8,7 @@ struct Globals {
 struct VertexInput {
     @location(0) v_pos: vec2<f32>,
     @location(1) pos: vec2<f32>,
-    @location(2) scale: vec2<f32>,
+    @location(2) size: vec2<f32>,
     @location(3) color: vec4<f32>,
     @location(4) border_color: vec4<f32>,
     @location(5) border_radius: vec4<f32>,
@@ -30,9 +30,9 @@ fn vs_main(input: VertexInput) -> VertexOutput {
     var out: VertexOutput;
 
     var pos: vec2<f32> = input.pos * globals.scale;
-    var scale: vec2<f32> = input.scale * globals.scale;
+    var scale: vec2<f32> = input.size * globals.scale;
 
-    var min_border_radius = min(input.scale.x, input.scale.y) * 0.5;
+    var min_border_radius = min(input.size.x, input.size.y) * 0.5;
     var border_radius: vec4<f32> = vec4<f32>(
         min(input.border_radius.x, min_border_radius),
         min(input.border_radius.y, min_border_radius),

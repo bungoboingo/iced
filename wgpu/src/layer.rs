@@ -32,17 +32,21 @@ pub struct Layer<'a> {
 
     /// The images of the [`Layer`].
     pub images: Vec<Image>,
+
+    /// The blur radius of the layer.
+    pub blur: Option<f32>,
 }
 
 impl<'a> Layer<'a> {
     /// Creates a new [`Layer`] with the given clipping bounds.
-    pub fn new(bounds: Rectangle) -> Self {
+    pub fn new(bounds: Rectangle, blur: Option<f32>,) -> Self {
         Self {
             bounds,
             quads: Vec::new(),
             meshes: Vec::new(),
             text: Vec::new(),
             images: Vec::new(),
+            blur,
         }
     }
 
@@ -51,7 +55,7 @@ impl<'a> Layer<'a> {
     /// This can be useful for displaying debug information.
     pub fn overlay(lines: &'a [impl AsRef<str>], viewport: &Viewport) -> Self {
         let mut overlay =
-            Layer::new(Rectangle::with_size(viewport.logical_size()));
+            Layer::new(Rectangle::with_size(viewport.logical_size()), None);
 
         for (i, line) in lines.iter().enumerate() {
             let text = Text {
@@ -88,7 +92,7 @@ impl<'a> Layer<'a> {
         viewport: &Viewport,
     ) -> Vec<Self> {
         let first_layer =
-            Layer::new(Rectangle::with_size(viewport.logical_size()));
+            Layer::new(Rectangle::with_size(viewport.logical_size()), None);
 
         let mut layers = vec![first_layer];
 
@@ -231,7 +235,7 @@ impl<'a> Layer<'a> {
                     )
                 }
             }
-            Primitive::Clip { bounds, content } => {
+            Primitive::Clip { bounds, blur, content } => {
                 let layer = &mut layers[current_layer];
                 let translated_bounds = *bounds + translation;
 
@@ -239,7 +243,7 @@ impl<'a> Layer<'a> {
                 if let Some(clip_bounds) =
                     layer.bounds.intersection(&translated_bounds)
                 {
-                    let clip_layer = Layer::new(clip_bounds);
+                    let clip_layer = Layer::new(clip_bounds, *blur);
                     layers.push(clip_layer);
 
                     Self::process_primitive(

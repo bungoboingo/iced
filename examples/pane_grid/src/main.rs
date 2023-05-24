@@ -30,6 +30,7 @@ enum Message {
     Clicked(pane_grid::Pane),
     Dragged(pane_grid::DragEvent),
     Resized(pane_grid::ResizeEvent),
+    Blur(pane_grid::Pane),
     TogglePin(pane_grid::Pane),
     Maximize(pane_grid::Pane),
     Restore,
@@ -140,6 +141,12 @@ impl Application for Example {
                     }
                 }
             }
+            Message::Blur(pane) => {
+                if let Some(Pane { is_blurred, .. }) = self.panes.get_mut(&pane)
+                {
+                    *is_blurred = !*is_blurred;
+                }
+            }
         }
 
         Command::none()
@@ -189,6 +196,7 @@ impl Application for Example {
                 .controls(view_controls(
                     id,
                     total_panes,
+                    pane.is_blurred,
                     pane.is_pinned,
                     is_maximized,
                 ))
@@ -203,7 +211,9 @@ impl Application for Example {
                 view_content(id, total_panes, pane.is_pinned, size)
             }))
             .title_bar(title_bar)
-            .style(if is_focused {
+            .style(if pane.is_blurred {
+                style::pane_blurred
+            } else if is_focused {
                 style::pane_focused
             } else {
                 style::pane_active
@@ -258,6 +268,7 @@ fn handle_hotkey(key_code: keyboard::KeyCode) -> Option<Message> {
 struct Pane {
     id: usize,
     pub is_pinned: bool,
+    pub is_blurred: bool,
 }
 
 impl Pane {
@@ -265,6 +276,7 @@ impl Pane {
         Self {
             id,
             is_pinned: false,
+            is_blurred: false,
         }
     }
 }
@@ -326,6 +338,7 @@ fn view_content<'a>(
 fn view_controls<'a>(
     pane: pane_grid::Pane,
     total_panes: usize,
+    is_blurred: bool,
     is_pinned: bool,
     is_maximized: bool,
 ) -> Element<'a, Message> {
@@ -346,6 +359,13 @@ fn view_controls<'a>(
 
         row = row.push(toggle);
     }
+
+    row = row.push(
+        button(text(if is_blurred { "sharpen" } else { "blur" }).size(14))
+            .style(theme::Button::Secondary)
+            .on_press(Message::Blur(pane))
+            .padding(3),
+    );
 
     let mut close = button(text("Close").size(14))
         .style(theme::Button::Destructive)
@@ -401,6 +421,13 @@ mod style {
             border_width: 2.0,
             border_color: palette.primary.strong.color,
             ..Default::default()
+        }
+    }
+
+    pub fn pane_blurred(theme: &Theme) -> container::Appearance {
+        container::Appearance {
+            blur: 15.0,
+            .. pane_focused(theme)
         }
     }
 }

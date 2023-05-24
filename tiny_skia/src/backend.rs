@@ -381,7 +381,7 @@ impl Backend {
                     translation + *offset,
                 );
             }
-            Primitive::Clip { bounds, blur, content } => {
+            Primitive::Clip { bounds,  content, .. } => {
                 let bounds = (*bounds + translation) * scale_factor;
 
                 if bounds == clip_bounds {
