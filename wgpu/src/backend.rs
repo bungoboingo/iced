@@ -325,7 +325,8 @@ impl Backend {
             },
         ));
 
-        for layer in layers {
+        for (index, layer) in layers.iter().enumerate() {
+            println!("Rendering layer {index:?}");
             let bounds = (layer.bounds * scale_factor).snap();
 
             if bounds.width < 1 || bounds.height < 1 {
@@ -333,15 +334,15 @@ impl Backend {
             }
 
             if let Some(blur) = layer.blur {
-                println!("Blurring: {blur:?}..");
+                println!("Layer must be BLURRED {blur:?} amount.");
 
                 //first we kill the current render pass since we need a different target
                 let _ = ManuallyDrop::into_inner(pass);
 
                 // create the dimensions of the offscreen texture
                 let texture_extent = wgpu::Extent3d {
-                    width: bounds.width,
-                    height: bounds.height,
+                    width: target_size.width,
+                    height: target_size.height,
                     depth_or_array_layers: 1,
                 };
 
@@ -379,17 +380,17 @@ impl Backend {
                     },
                 ));
 
-                //shift bounds to origin of new texture!
-                let adjusted_bounds = Rectangle::<u32> {
-                    x: 0,
-                    y: 0,
-                    width: bounds.width,
-                    height: bounds.height,
-                };
+                //shift bounds to origin of new texture
+                // let adjusted_bounds = Rectangle::<u32> {
+                //     x: 0,
+                //     y: 0,
+                //     width: bounds.width,
+                //     height: bounds.height,
+                // };
 
                 //instead of writing to the frame's surface, we will be writing to the new texture instead
                 if !layer.quads.is_empty() {
-                    self.quad_pipeline.render(quad_layer, adjusted_bounds, &mut pass);
+                    self.quad_pipeline.render(quad_layer, bounds, &mut pass);
 
                     quad_layer += 1;
                 }
@@ -403,7 +404,7 @@ impl Backend {
                         encoder,
                         &src_view,
                         triangle_layer,
-                        Size::new(adjusted_bounds.width, adjusted_bounds.height),
+                        Size::new(bounds.width, bounds.height),
                         &layer.meshes,
                         scale_factor,
                     );
@@ -434,7 +435,7 @@ impl Backend {
                     if !layer.images.is_empty() {
                         self.image_pipeline.render(
                             image_layer,
-                            adjusted_bounds,
+                            bounds,
                             &mut pass,
                         );
 
@@ -443,18 +444,30 @@ impl Backend {
                 }
 
                 if !layer.text.is_empty() {
-                    self.text_pipeline.render(text_layer, adjusted_bounds, &mut pass);
+                    self.text_pipeline.render(text_layer, bounds, &mut pass);
 
                     text_layer += 1;
                 }
 
-                //drop current pass
+                //drop current pass cause we done writing and need 2 render passes for the blurring
                 let _ = ManuallyDrop::into_inner(pass);
 
-                // reassign the render pass, this time targeting the surface!
-                pass = ManuallyDrop::new(
-                    encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-                        label: Some("iced_wgpu.blur.render_pass"),
+                // now we pass the written texture to the blur pipeline
+                // and render the output to the frame's surface
+                self.blur_pipeline.render(
+                    queue,
+                    encoder,
+                    device,
+                    &target,
+                    &src_view,
+                    blur,
+                    bounds.into(),
+                );
+
+                // reassign render pass.. carry on..
+                pass = ManuallyDrop::new(encoder.begin_render_pass(
+                    &wgpu::RenderPassDescriptor {
+                        label: Some("iced_wgpu::quad render pass"),
                         color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                             view: target,
                             resolve_target: None,
@@ -464,20 +477,8 @@ impl Backend {
                             },
                         })],
                         depth_stencil_attachment: None,
-                    })
-                );
-
-                // now we pass the written texture to the blur pipeline
-                // and render the output to the frame's surface
-                self.blur_pipeline.render(
-                    queue,
-                    &mut pass,
-                    device,
-                    &src_view,
-                    blur,
-                    bounds.into(),
-                    target_size,
-                );
+                    },
+                ));
             } else {
                 if !layer.quads.is_empty() {
                     self.quad_pipeline.render(quad_layer, bounds, &mut pass);

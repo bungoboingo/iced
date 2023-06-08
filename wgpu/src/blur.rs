@@ -1,5 +1,4 @@
 use crate::core::{Rectangle, Size};
-use crate::quad;
 use wgpu::util::DeviceExt;
 use wgpu::BufferSize;
 
@@ -35,10 +34,10 @@ impl Pipeline {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("iced_wgpu.blur.vertex_buffer"),
                 contents: bytemuck::cast_slice(&[
-                    [0.0, 0.0],
-                    [1.0, 0.0],
-                    [1.0, 1.0],
-                    [0.0, 1.0],
+                    [-1.0, -1.0], //bottom left
+                    [1.0, -1.0], //bottom right
+                    [1.0, 1.0], //top right
+                    [-1.0, 1.0], //top left
                 ]),
                 usage: wgpu::BufferUsages::VERTEX,
             });
@@ -46,7 +45,7 @@ impl Pipeline {
         let indices =
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("iced_wgpu.blur.index_buffer"),
-                contents: bytemuck::cast_slice(&[0u16, 1, 2, 0, 2, 3]),
+                contents: bytemuck::cast_slice(&[0u16, 1, 2, 2, 3, 0]),
                 usage: wgpu::BufferUsages::INDEX,
             });
 
@@ -54,8 +53,8 @@ impl Pipeline {
         // change layer to have a Blur type primitive maybe so we can group
         let blur_vertices = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("iced_wgpu.blur.instance_buffer"),
-            size: std::mem::size_of::<Vertex>() as u64,
-            usage: wgpu::BufferUsages::VERTEX  | wgpu::BufferUsages::COPY_DST,
+            size: std::mem::size_of::<[Vertex; 4]>() as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
             mapped_at_creation: false,
         });
 
@@ -96,7 +95,7 @@ impl Pipeline {
                                 filterable: true,
                             },
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false, //TODO sample more than 1 px somehow?
+                            multisampled: false, //TODO sample more than 1 px somehow? idk where to do that
                         },
                         count: None,
                     },
@@ -192,13 +191,28 @@ impl Pipeline {
     pub fn render<'a>(
         &'a mut self,
         queue: &wgpu::Queue,
-        pass: &mut wgpu::RenderPass<'a>,
+        encoder: &mut wgpu::CommandEncoder,
         device: &wgpu::Device,
+        frame: &wgpu::TextureView,
         src_texture: &wgpu::TextureView,
         blur: f32,
         bounds: Rectangle,
-        surface_size: Size<u32>,
     ) {
+        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("iced_wgpu.blur.horizontal_pass"),
+            color_attachments: &[Some(
+                wgpu::RenderPassColorAttachment {
+                    view: &frame,
+                    resolve_target: None,
+                    ops: wgpu::Operations {
+                        load: wgpu::LoadOp::Load,
+                        store: true,
+                    }
+                }
+            )],
+            depth_stencil_attachment: None,
+        });
+
         let vertex = Vertex {
             position: [bounds.x, bounds.y],
             size: [bounds.width, bounds.height],
@@ -210,7 +224,12 @@ impl Pipeline {
         queue.write_buffer(
             &self.blur_vertices,
             0,
-            bytemuck::bytes_of(&vertex),
+            bytemuck::bytes_of(&[
+                vertex,
+                vertex,
+                vertex,
+                vertex,
+            ]),
         );
 
         queue.write_buffer(
@@ -232,19 +251,13 @@ impl Pipeline {
                             wgpu::BufferBinding {
                                 buffer: &self.uniforms,
                                 offset: 0,
-                                size: BufferSize::new(std::mem::size_of::<
-                                    Uniforms,
-                                >(
-                                )
-                                    as u64),
+                                size: BufferSize::new(std::mem::size_of::<Uniforms>() as u64),
                             },
                         ),
                     },
                     wgpu::BindGroupEntry {
                         binding: 1,
-                        resource: wgpu::BindingResource::TextureView(
-                            src_texture,
-                        ),
+                        resource: wgpu::BindingResource::TextureView(src_texture),
                     },
                     wgpu::BindGroupEntry {
                         binding: 2,
@@ -254,8 +267,13 @@ impl Pipeline {
             }));
 
         if let Some(bind_group) = &self.bind_group {
-            println!("Blurring..");
             pass.set_pipeline(&self.pipeline);
+            pass.set_scissor_rect(
+                bounds.x as u32,
+                bounds.y as u32,
+                bounds.width as u32,
+                bounds.height as u32,
+            );
             pass.set_bind_group(0, bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertices.slice(..));
             pass.set_vertex_buffer(1, self.blur_vertices.slice(..));

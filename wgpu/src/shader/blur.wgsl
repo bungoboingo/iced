@@ -19,13 +19,13 @@ struct VertexInput {
 @vertex
 fn vs_main(input: VertexInput) -> @builtin(position) vec4<f32> {
     var transform: mat4x4<f32> = mat4x4<f32>(
-        vec4<f32>(input.size.x, 0.0, 0.0, 0.0),
-        vec4<f32>(0.0, input.size.y, 0.0, 0.0),
+        vec4<f32>(input.size.x + 1.0, 0.0, 0.0, 0.0),
+        vec4<f32>(0.0, input.size.y + 1.0, 0.0, 0.0),
         vec4<f32>(0.0, 0.0, 1.0, 0.0),
-        vec4<f32>(input.pos, 0.0, 1.0),
+        vec4<f32>(input.pos - vec2<f32>(0.5, 0.5), 0.0, 1.0),
     );
 
-    return uniforms.transform * transform * vec4<f32>(input.v_pos, 0.0, 1.0);
+    return vec4<f32>(input.v_pos, 0.0, 1.0);
 }
 
 @fragment
