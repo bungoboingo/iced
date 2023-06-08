@@ -1,6 +1,7 @@
-use crate::core::{Rectangle, Size};
+use crate::core::Rectangle;
 use wgpu::util::DeviceExt;
 use wgpu::BufferSize;
+use iced_graphics::Transformation;
 
 pub struct Pipeline {
     pipeline: wgpu::RenderPipeline,
@@ -24,7 +25,7 @@ struct Vertex {
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
 #[repr(C)]
 struct Uniforms {
-    transform: glam::Mat4,
+    transform: [f32; 16],
 }
 
 impl Pipeline {
@@ -34,10 +35,10 @@ impl Pipeline {
             device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
                 label: Some("iced_wgpu.blur.vertex_buffer"),
                 contents: bytemuck::cast_slice(&[
-                    [-1.0, -1.0], //bottom left
-                    [1.0, -1.0], //bottom right
+                    [0.0f32, 0.0], //bottom left
+                    [1.0, 0.0], //bottom right
                     [1.0, 1.0], //top right
-                    [-1.0, 1.0], //top left
+                    [0.0, 1.0], //top left
                 ]),
                 usage: wgpu::BufferUsages::VERTEX,
             });
@@ -87,26 +88,26 @@ impl Pipeline {
                         count: None,
                     },
                     // the src texture to sample & blur
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 1,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Texture {
-                            sample_type: wgpu::TextureSampleType::Float {
-                                filterable: true,
-                            },
-                            view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false, //TODO sample more than 1 px somehow? idk where to do that
-                        },
-                        count: None,
-                    },
-                    wgpu::BindGroupLayoutEntry {
-                        binding: 2,
-                        visibility: wgpu::ShaderStages::FRAGMENT,
-                        ty: wgpu::BindingType::Sampler(
-                            wgpu::SamplerBindingType::Filtering,
-                        ),
-                        count: None,
-                    },
+                    // wgpu::BindGroupLayoutEntry {
+                    //     binding: 1,
+                    //     visibility: wgpu::ShaderStages::FRAGMENT,
+                    //     ty: wgpu::BindingType::Texture {
+                    //         sample_type: wgpu::TextureSampleType::Float {
+                    //             filterable: true,
+                    //         },
+                    //         view_dimension: wgpu::TextureViewDimension::D2,
+                    //         multisampled: false, //TODO sample more than 1 px somehow? idk where to do that
+                    //     },
+                    //     count: None,
+                    // },
+                    // wgpu::BindGroupLayoutEntry {
+                    //     binding: 2,
+                    //     visibility: wgpu::ShaderStages::FRAGMENT,
+                    //     ty: wgpu::BindingType::Sampler(
+                    //         wgpu::SamplerBindingType::Filtering,
+                    //     ),
+                    //     count: None,
+                    // },
                 ],
             });
 
@@ -168,7 +169,7 @@ impl Pipeline {
                     targets: &[Some(wgpu::ColorTargetState {
                         format,
                         blend: Some(wgpu::BlendState::ALPHA_BLENDING),
-                        write_mask: wgpu::ColorWrites::default(),
+                        write_mask: wgpu::ColorWrites::ALL,
                     })],
                 }),
                 multiview: None,
@@ -191,35 +192,20 @@ impl Pipeline {
     pub fn render<'a>(
         &'a mut self,
         queue: &wgpu::Queue,
-        encoder: &mut wgpu::CommandEncoder,
+        transform: Transformation,
+        // encoder: &mut wgpu::CommandEncoder,
+        pass: &mut wgpu::RenderPass<'a>,
         device: &wgpu::Device,
         frame: &wgpu::TextureView,
-        src_texture: &wgpu::TextureView,
+        // src_texture: &wgpu::TextureView,
         blur: f32,
         bounds: Rectangle,
     ) {
-        let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("iced_wgpu.blur.horizontal_pass"),
-            color_attachments: &[Some(
-                wgpu::RenderPassColorAttachment {
-                    view: &frame,
-                    resolve_target: None,
-                    ops: wgpu::Operations {
-                        load: wgpu::LoadOp::Load,
-                        store: true,
-                    }
-                }
-            )],
-            depth_stencil_attachment: None,
-        });
-
         let vertex = Vertex {
             position: [bounds.x, bounds.y],
             size: [bounds.width, bounds.height],
             blur,
         };
-
-        println!("Writing vertex to queue: {vertex:?}");
 
         queue.write_buffer(
             &self.blur_vertices,
@@ -236,7 +222,7 @@ impl Pipeline {
             &self.uniforms,
             0,
             bytemuck::bytes_of(&Uniforms {
-                transform: glam::Mat4::IDENTITY,
+                transform: transform.into(),
             }),
         );
 
@@ -255,25 +241,40 @@ impl Pipeline {
                             },
                         ),
                     },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(src_texture),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
+                    // wgpu::BindGroupEntry {
+                    //     binding: 1,
+                    //     resource: wgpu::BindingResource::TextureView(src_texture),
+                    // },
+                    // wgpu::BindGroupEntry {
+                    //     binding: 2,
+                    //     resource: wgpu::BindingResource::Sampler(&self.sampler),
+                    // },
                 ],
             }));
 
         if let Some(bind_group) = &self.bind_group {
+            // let mut pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            //     label: Some("iced_wgpu.blur.horizontal_pass"),
+            //     color_attachments: &[Some(
+            //         wgpu::RenderPassColorAttachment {
+            //             view: &frame,
+            //             resolve_target: None,
+            //             ops: wgpu::Operations {
+            //                 load: wgpu::LoadOp::Load,
+            //                 store: true,
+            //             }
+            //         }
+            //     )],
+            //     depth_stencil_attachment: None,
+            // });
+
             pass.set_pipeline(&self.pipeline);
-            pass.set_scissor_rect(
-                bounds.x as u32,
-                bounds.y as u32,
-                bounds.width as u32,
-                bounds.height as u32,
-            );
+            // pass.set_scissor_rect(
+            //     bounds.x as u32,
+            //     bounds.y as u32,
+            //     bounds.width as u32,
+            //     bounds.height as u32,
+            // );
             pass.set_bind_group(0, bind_group, &[]);
             pass.set_vertex_buffer(0, self.vertices.slice(..));
             pass.set_vertex_buffer(1, self.blur_vertices.slice(..));

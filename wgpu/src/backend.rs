@@ -1,4 +1,4 @@
-use crate::core::{Color, Font, Point, Rectangle, Size};
+use crate::core::{Color, Font, Point, Size};
 use crate::graphics::backend;
 use crate::graphics::{Primitive, Transformation, Viewport};
 use crate::text;
@@ -117,6 +117,7 @@ impl Backend {
             clear_color,
             scale_factor,
             target_size,
+            transformation,
             &layers,
         );
 
@@ -287,6 +288,7 @@ impl Backend {
         clear_color: Option<Color>,
         scale_factor: f32,
         target_size: Size<u32>,
+        transform: Transformation,
         layers: &[Layer<'_>],
     ) {
         use std::mem::ManuallyDrop;
@@ -325,8 +327,7 @@ impl Backend {
             },
         ));
 
-        for (index, layer) in layers.iter().enumerate() {
-            println!("Rendering layer {index:?}");
+        for layer in layers {
             let bounds = (layer.bounds * scale_factor).snap();
 
             if bounds.width < 1 || bounds.height < 1 {
@@ -335,136 +336,142 @@ impl Backend {
 
             if let Some(blur) = layer.blur {
                 println!("Layer must be BLURRED {blur:?} amount.");
+                // first we kill the current render pass since we need a different target
+                // let _ = ManuallyDrop::into_inner(pass);
 
-                //first we kill the current render pass since we need a different target
-                let _ = ManuallyDrop::into_inner(pass);
-
-                // create the dimensions of the offscreen texture
-                let texture_extent = wgpu::Extent3d {
-                    width: target_size.width,
-                    height: target_size.height,
-                    depth_or_array_layers: 1,
-                };
+                // dimensions of to-be-blurred texture
+                // let size = wgpu::Extent3d {
+                //     width: target_size.width, //TODO make this size of layer & adjust bounds after debugging
+                //     height: target_size.height,
+                //     depth_or_array_layers: 1,
+                // };
 
                 // then we create a new texture to render the layer's contents to,
                 // which is the size of the layer to blur
-                let texture = device.create_texture(&wgpu::TextureDescriptor {
-                    label: Some("iced_wgpu.blur.source_texture"),
-                    size: texture_extent,
-                    mip_level_count: 1,
-                    sample_count: 1,
-                    dimension: wgpu::TextureDimension::D2,
-                    format,
-                    usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::RENDER_ATTACHMENT,
-                    view_formats: &[],
-                });
-
-                let src_view = texture
-                    .create_view(&wgpu::TextureViewDescriptor::default());
-
-                // now we reassign the render pass with the new texture as the view to write to
-                pass = ManuallyDrop::new(encoder.begin_render_pass(
-                    &wgpu::RenderPassDescriptor {
-                        label: Some("iced_wgpu.blur.render_pass"),
-                        color_attachments: &[Some(
-                            wgpu::RenderPassColorAttachment {
-                                view: &src_view, //new!
-                                resolve_target: None,
-                                ops: wgpu::Operations {
-                                    load: wgpu::LoadOp::Load,
-                                    store: true,
-                                },
-                            },
-                        )],
-                        depth_stencil_attachment: None,
-                    },
-                ));
-
-                //shift bounds to origin of new texture
-                // let adjusted_bounds = Rectangle::<u32> {
-                //     x: 0,
-                //     y: 0,
-                //     width: bounds.width,
-                //     height: bounds.height,
-                // };
-
-                //instead of writing to the frame's surface, we will be writing to the new texture instead
-                if !layer.quads.is_empty() {
-                    self.quad_pipeline.render(quad_layer, bounds, &mut pass);
-
-                    quad_layer += 1;
-                }
-
-                if !layer.meshes.is_empty() {
-                    // need to kill render pass as triangle pipeline must create its own
-                    let _ = ManuallyDrop::into_inner(pass);
-
-                    self.triangle_pipeline.render(
-                        device,
-                        encoder,
-                        &src_view,
-                        triangle_layer,
-                        Size::new(bounds.width, bounds.height),
-                        &layer.meshes,
-                        scale_factor,
-                    );
-
-                    triangle_layer += 1;
-
-                    // recreate render pass... carry on..
-                    pass = ManuallyDrop::new(encoder.begin_render_pass(
-                        &wgpu::RenderPassDescriptor {
-                            label: Some("iced_wgpu.blur.render_pass"),
-                            color_attachments: &[Some(
-                                wgpu::RenderPassColorAttachment {
-                                    view: &src_view,
-                                    resolve_target: None,
-                                    ops: wgpu::Operations {
-                                        load: wgpu::LoadOp::Load,
-                                        store: true,
-                                    },
-                                },
-                            )],
-                            depth_stencil_attachment: None,
-                        },
-                    ));
-                }
-
-                #[cfg(any(feature = "image", feature = "svg"))]
-                {
-                    if !layer.images.is_empty() {
-                        self.image_pipeline.render(
-                            image_layer,
-                            bounds,
-                            &mut pass,
-                        );
-
-                        image_layer += 1;
-                    }
-                }
-
-                if !layer.text.is_empty() {
-                    self.text_pipeline.render(text_layer, bounds, &mut pass);
-
-                    text_layer += 1;
-                }
+                // let texture = device.create_texture(&wgpu::TextureDescriptor {
+                //     label: Some("iced_wgpu.blur.source_texture"),
+                //     size,
+                //     mip_level_count: 1,
+                //     sample_count: 1,
+                //     dimension: wgpu::TextureDimension::D2,
+                //     format,
+                //     usage: wgpu::TextureUsages::TEXTURE_BINDING
+                //         | wgpu::TextureUsages::RENDER_ATTACHMENT,
+                //     view_formats: &[],
+                // });
+                //
+                // let src_view = texture
+                //     .create_view(&wgpu::TextureViewDescriptor::default());
+                //
+                // println!("Blur texture: {texture:#?}");
+                //
+                // // now we reassign the render pass with the new texture as the view to write to
+                // pass = ManuallyDrop::new(encoder.begin_render_pass(
+                //     &wgpu::RenderPassDescriptor {
+                //         label: Some("iced_wgpu.blur.render_pass"),
+                //         color_attachments: &[Some(
+                //             wgpu::RenderPassColorAttachment {
+                //                 view: &src_view, //use the texture-to-be-blurred to write to
+                //                 resolve_target: None,
+                //                 ops: wgpu::Operations {
+                //                     load: wgpu::LoadOp::Load,
+                //                     store: true,
+                //                 },
+                //             },
+                //         )],
+                //         depth_stencil_attachment: None,
+                //     },
+                // ));
+                //
+                // //shift bounds to origin of new texture
+                // // let adjusted_bounds = Rectangle::<u32> {
+                // //     x: 0,
+                // //     y: 0,
+                // //     width: bounds.width,
+                // //     height: bounds.height,
+                // // };
+                //
+                // //instead of writing to the frame's surface, we will be writing to the new texture instead
+                // if !layer.quads.is_empty() {
+                //     self.quad_pipeline.render(quad_layer, bounds, &mut pass);
+                //
+                //     quad_layer += 1;
+                // }
+                //
+                // if !layer.meshes.is_empty() {
+                //     println!("Rendering meshes..");
+                //     // need to kill render pass as triangle pipeline must create its own
+                //     let _ = ManuallyDrop::into_inner(pass);
+                //
+                //     self.triangle_pipeline.render(
+                //         device,
+                //         encoder,
+                //         &src_view,
+                //         triangle_layer,
+                //         Size::new(bounds.width, bounds.height),
+                //         &layer.meshes,
+                //         scale_factor,
+                //     );
+                //
+                //     triangle_layer += 1;
+                //
+                //     // recreate render pass... carry on..
+                //     pass = ManuallyDrop::new(encoder.begin_render_pass(
+                //         &wgpu::RenderPassDescriptor {
+                //             label: Some("iced_wgpu.blur.render_pass"),
+                //             color_attachments: &[Some(
+                //                 wgpu::RenderPassColorAttachment {
+                //                     view: &src_view,
+                //                     resolve_target: None,
+                //                     ops: wgpu::Operations {
+                //                         load: wgpu::LoadOp::Load,
+                //                         store: true,
+                //                     },
+                //                 },
+                //             )],
+                //             depth_stencil_attachment: None,
+                //         },
+                //     ));
+                // }
+                //
+                // #[cfg(any(feature = "image", feature = "svg"))]
+                // {
+                //     if !layer.images.is_empty() {
+                //         self.image_pipeline.render(
+                //             image_layer,
+                //             bounds,
+                //             &mut pass,
+                //         );
+                //
+                //         image_layer += 1;
+                //     }
+                // }
+                //
+                // if !layer.text.is_empty() {
+                //     self.text_pipeline.render(text_layer, bounds, &mut pass);
+                //
+                //     text_layer += 1;
+                // }
 
                 //drop current pass cause we done writing and need 2 render passes for the blurring
-                let _ = ManuallyDrop::into_inner(pass);
+                // let _ = ManuallyDrop::into_inner(pass);
 
                 // now we pass the written texture to the blur pipeline
                 // and render the output to the frame's surface
                 self.blur_pipeline.render(
                     queue,
-                    encoder,
+                    transform,
+
+                    &mut pass,
+                    // encoder,
                     device,
                     &target,
-                    &src_view,
+                    // &src_view,
                     blur,
                     bounds.into(),
                 );
 
-                // reassign render pass.. carry on..
+                // done. reassign render pass back to surface target & carry on
                 pass = ManuallyDrop::new(encoder.begin_render_pass(
                     &wgpu::RenderPassDescriptor {
                         label: Some("iced_wgpu::quad render pass"),

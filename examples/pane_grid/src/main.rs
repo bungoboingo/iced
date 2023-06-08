@@ -1,6 +1,6 @@
 use iced::alignment::{self, Alignment};
 use iced::event::{self, Event};
-use iced::executor;
+use iced::{application, executor};
 use iced::keyboard;
 use iced::subscription;
 use iced::theme::{self, Theme};
@@ -11,8 +11,11 @@ use iced::widget::{
 use iced::{
     Application, Color, Command, Element, Length, Settings, Size, Subscription,
 };
+use iced::application::StyleSheet;
 
 pub fn main() -> iced::Result {
+    env_logger::builder().format_timestamp(None).init();
+
     Example::run(Settings::default())
 }
 
@@ -55,6 +58,17 @@ impl Application for Example {
             },
             Command::none(),
         )
+    }
+
+    fn style(&self) -> <Self::Theme as StyleSheet>::Style {
+        fn dark_background(_theme: &Theme) -> application::Appearance {
+            application::Appearance {
+                background_color: Color::BLACK,
+                text_color: Color::WHITE,
+            }
+        }
+
+        theme::Application::from(dark_background as fn(&Theme) -> _)
     }
 
     fn title(&self) -> String {
