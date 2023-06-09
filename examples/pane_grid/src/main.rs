@@ -60,17 +60,6 @@ impl Application for Example {
         )
     }
 
-    fn style(&self) -> <Self::Theme as StyleSheet>::Style {
-        fn dark_background(_theme: &Theme) -> application::Appearance {
-            application::Appearance {
-                background_color: Color::BLACK,
-                text_color: Color::WHITE,
-            }
-        }
-
-        theme::Application::from(dark_background as fn(&Theme) -> _)
-    }
-
     fn title(&self) -> String {
         String::from("Pane grid - Iced")
     }

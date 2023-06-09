@@ -105,8 +105,6 @@ where
         let appearance = theme.appearance(&self.style);
 
         if appearance.blur > 0.0 {
-            println!("Container has a blur.... preparing the blur layer");
-
             renderer.with_layer(bounds, Some(appearance.blur), |renderer| {
                 container::draw_background(renderer, &appearance, bounds);
 

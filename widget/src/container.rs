@@ -242,7 +242,6 @@ where
         let style = theme.appearance(&self.style);
 
         if style.blur > 0.0 {
-            println!("Container has a blur.... preparing the blur layer");
             renderer.with_layer(layout.bounds(), Some(style.blur), |renderer| {
                 draw_background(renderer, &style, layout.bounds());
 
