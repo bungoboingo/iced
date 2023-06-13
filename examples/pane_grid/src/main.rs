@@ -1,6 +1,6 @@
 use iced::alignment::{self, Alignment};
 use iced::event::{self, Event};
-use iced::{application, executor};
+use iced::executor;
 use iced::keyboard;
 use iced::subscription;
 use iced::theme::{self, Theme};
@@ -11,7 +11,6 @@ use iced::widget::{
 use iced::{
     Application, Color, Command, Element, Length, Settings, Size, Subscription,
 };
-use iced::application::StyleSheet;
 
 pub fn main() -> iced::Result {
     env_logger::builder().format_timestamp(None).init();
@@ -430,7 +429,7 @@ mod style {
     pub fn pane_blurred(theme: &Theme) -> container::Appearance {
         container::Appearance {
             blur: 15.0,
-            .. pane_focused(theme)
+            ..pane_focused(theme)
         }
     }
 }

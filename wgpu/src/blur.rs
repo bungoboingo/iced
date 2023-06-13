@@ -85,19 +85,19 @@ impl Pipeline {
                 contents: bytemuck::cast_slice(&[
                     Vertex {
                         pos: [0.0, 0.0],
-                        uv: [0.0, 0.0],
+                        uv: [0.0, 1.0],
                     },
                     Vertex {
                         pos: [1.0, 0.0],
-                        uv: [1.0, 0.0],
-                    },
-                    Vertex {
-                        pos: [1.0, 1.0],
                         uv: [1.0, 1.0],
                     },
                     Vertex {
+                        pos: [1.0, 1.0],
+                        uv: [1.0, 0.0],
+                    },
+                    Vertex {
                         pos: [0.0, 1.0],
-                        uv: [0.0, 1.0],
+                        uv: [0.0, 0.0],
                     },
                 ]),
                 usage: wgpu::BufferUsages::VERTEX,
@@ -120,8 +120,6 @@ impl Pipeline {
         let sampler = device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("iced_wgpu.blur.sampler"),
             min_filter: wgpu::FilterMode::Linear,
-            mag_filter: wgpu::FilterMode::Linear,
-            mipmap_filter: wgpu::FilterMode::Linear,
             ..Default::default()
         });
 
@@ -149,7 +147,7 @@ impl Pipeline {
                                 filterable: true,
                             },
                             view_dimension: wgpu::TextureViewDimension::D2,
-                            multisampled: false, //TODO sample more than 1 px somehow? idk where to do that
+                            multisampled: false,
                         },
                         count: None,
                     },
@@ -212,7 +210,7 @@ impl Pipeline {
                                 operation: wgpu::BlendOperation::Add,
                             },
                             alpha: wgpu::BlendComponent {
-                                src_factor: wgpu::BlendFactor::SrcAlpha,
+                                src_factor: wgpu::BlendFactor::One,
                                 dst_factor: wgpu::BlendFactor::OneMinusSrcAlpha,
                                 operation: wgpu::BlendOperation::Add,
                             },
@@ -238,8 +236,9 @@ impl Pipeline {
         }
     }
 
-    //TODO try Kawase over Gaussian..? or have an option for different blur types
-    //TODO blurred texture caching in image atlas or "blur" atlas.. ?
+    //TODO try Kawase over Gaussian..? or have an option for different blur types..? box filter?
+    //TODO need to write all textures to a single texture, making two each pass is no beuno
+    //TODO can get rid of nearly all these uniform values; consolidate!
     pub fn render<'a>(
         &'a mut self,
         queue: &wgpu::Queue,
@@ -252,28 +251,7 @@ impl Pipeline {
         blur: f32,
         bounds: Rectangle,
     ) {
-        self.bind_group =
-            Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                label: Some("iced_wgpu.blur.uniform_bind_group"),
-                layout: &self.uniform_layout,
-                entries: &[
-                    wgpu::BindGroupEntry {
-                        binding: 0,
-                        resource: self.uniforms.as_entire_binding(),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 1,
-                        resource: wgpu::BindingResource::TextureView(
-                            src_texture,
-                        ),
-                    },
-                    wgpu::BindGroupEntry {
-                        binding: 2,
-                        resource: wgpu::BindingResource::Sampler(&self.sampler),
-                    },
-                ],
-            }));
-
+        // Create the texture to render the vertical pass to
         let horizontal_texture =
             device.create_texture(&wgpu::TextureDescriptor {
                 label: Some("iced_wgpu.horizontal.blur.texture"),
@@ -294,8 +272,33 @@ impl Pipeline {
         let horizontal_view = horizontal_texture
             .create_view(&wgpu::TextureViewDescriptor::default());
 
-        //first we do a vertical render pass to the "horizontal view" texture
+        //first do a vertical render pass to the horizontal texture
         {
+            self.bind_group =
+                Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("iced_wgpu.blur.uniform_bind_group.vertical"),
+                    layout: &self.uniform_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: self.uniforms.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(
+                                src_texture, //sample src texture
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Sampler(
+                                &self.sampler,
+                            ),
+                        },
+                    ],
+                }));
+
+            // Write uniforms with vertical pass indicator, direction = 1.0
             queue.write_buffer(
                 &self.uniforms,
                 0,
@@ -304,7 +307,7 @@ impl Pipeline {
                     position: [0.0, 0.0],
                     size: [bounds.width, bounds.height],
                     blur,
-                    dir: 1.0, //vertical
+                    dir: 1.0, //vertical pass
                     _padding: [0.0; 2],
                 }),
             );
@@ -314,7 +317,7 @@ impl Pipeline {
                     label: Some("iced_wgpu.blur.vertical_pass"),
                     color_attachments: &[Some(
                         wgpu::RenderPassColorAttachment {
-                            view: &horizontal_view,
+                            view: &horizontal_view, //attach the horizontal texture view
                             resolve_target: None,
                             ops: wgpu::Operations {
                                 load: wgpu::LoadOp::Load,
@@ -326,46 +329,18 @@ impl Pipeline {
                 });
 
             pass.set_pipeline(&self.pipeline);
-
-            if let Some(bind_group) = &self.bind_group {
-                pass.set_bind_group(0, bind_group, &[]);
-            }
+            pass.set_bind_group(0, self.bind_group.as_ref().unwrap(), &[]);
             pass.set_vertex_buffer(0, self.vertices.slice(..));
             pass.set_index_buffer(
                 self.indices.slice(..),
                 wgpu::IndexFormat::Uint16,
             );
-
-            //draw vertical pass to horizontal_texture
             pass.draw_indexed(0..6, 0, 0..1);
         }
 
-        //now we render the horizontal pass to the frame, sampling the texture just rendered to
+        //now we render the horizontal pass to the frame, sampling the vertical pass texture just rendered to
         {
-            // recreate bind group with new horizontal texture as input
-            self.bind_group =
-                Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
-                    label: Some("iced_wgpu.blur.uniform_bind_group"),
-                    layout: &self.uniform_layout,
-                    entries: &[
-                        wgpu::BindGroupEntry {
-                            binding: 0,
-                            resource: self.uniforms.as_entire_binding(),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 1,
-                            resource: wgpu::BindingResource::TextureView(&horizontal_view),
-                        },
-                        wgpu::BindGroupEntry {
-                            binding: 2,
-                            resource: wgpu::BindingResource::Sampler(
-                                &self.sampler,
-                            ),
-                        },
-                    ],
-                }));
-
-            //rewrite uniforms indicating that we are now doing a horizontal pass e.g. dir == 0.0
+            //rewrite uniforms indicating that we are now doing a horizontal pass, direction = 0.0
             queue.write_buffer(
                 &self.uniforms,
                 0,
@@ -379,7 +354,32 @@ impl Pipeline {
                 }),
             );
 
-            //create new pass targeting the frame
+            // recreate bind group with new horizontal texture to sample
+            self.bind_group =
+                Some(device.create_bind_group(&wgpu::BindGroupDescriptor {
+                    label: Some("iced_wgpu.blur.uniform_bind_group.vertical"),
+                    layout: &self.uniform_layout,
+                    entries: &[
+                        wgpu::BindGroupEntry {
+                            binding: 0,
+                            resource: self.uniforms.as_entire_binding(),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 1,
+                            resource: wgpu::BindingResource::TextureView(
+                                &horizontal_view, //sample horizontal texture
+                            ),
+                        },
+                        wgpu::BindGroupEntry {
+                            binding: 2,
+                            resource: wgpu::BindingResource::Sampler(
+                                &self.sampler,
+                            ),
+                        },
+                    ],
+                }));
+
+            //create new pass targeting the frame's surface
             let mut pass =
                 encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                     label: Some("iced_wgpu.blur.vertical_pass"),
@@ -397,24 +397,18 @@ impl Pipeline {
                 });
 
             pass.set_pipeline(&self.pipeline);
-
             pass.set_scissor_rect(
                 bounds.x as u32,
                 bounds.y as u32,
                 bounds.width as u32,
                 bounds.height as u32,
             );
-
-            if let Some(bind_group) = &self.bind_group {
-                pass.set_bind_group(0, bind_group, &[]);
-            }
+            pass.set_bind_group(0, self.bind_group.as_ref().unwrap(), &[]);
             pass.set_vertex_buffer(0, self.vertices.slice(..));
             pass.set_index_buffer(
                 self.indices.slice(..),
                 wgpu::IndexFormat::Uint16,
             );
-
-            //draw vertical pass to horizontal_texture
             pass.draw_indexed(0..6, 0, 0..1);
         }
     }

@@ -43,30 +43,28 @@ fn gaussian(x: f32, e: f32) -> f32 {
 
 @fragment
 fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
-    // the kernel size == the blur radius
     var color = vec4<f32>(0.0);
     let rad = uniforms.blur;
 
     var total = 0.0;
-    let kernel_w = abs(u32(rad) + 1u); //rad == 15, this == 16
+    let kernel_w = abs(u32(rad) + 1u);
 
     for (var x = 0u; x < kernel_w; x++) {
-        let x_2 = 1.0 * (f32(x) - rad); // -15
+        let x_2 = 1.0 * (f32(x) - rad);
 
         var offset: vec2<f32>;
 
         if (uniforms.dir >= 0.5) {
-            //vertical
-            offset = vec2<f32>(0.0, x_2 / uniforms.scale.y); //vec2(0, -0.01), vertical
+            offset = vec2<f32>(0.0, x_2 / uniforms.scale.y);
         } else {
-            //horizontal
-            offset = vec2<f32>(x_2 / uniforms.scale.x, 0.0); //vec2(-0.01, 0), horizontal
+            offset = vec2<f32>(x_2 / uniforms.scale.x, 0.0);
         }
 
-        let i_pos = input.uv + offset;
-        let g = gaussian(x_2, rad * rad);
-        color += g * textureSample(src_texture, src_sampler, i_pos);
-        total += g;
+        let kernel_pos = input.uv + offset;
+        //TODO switch to precalculated weights and just downsample the texture
+        let blurred = gaussian(x_2, rad * rad);
+        color += blurred * textureSample(src_texture, src_sampler, kernel_pos);
+        total += blurred;
     }
 
     return color / total;

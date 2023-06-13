@@ -1,4 +1,4 @@
-use crate::core::{Color, Font, Point, Rectangle, Size, Vector};
+use crate::core::{Color, Font, Point, Rectangle, Size};
 use crate::graphics::backend;
 use crate::graphics::{Primitive, Transformation, Viewport};
 use crate::text;
