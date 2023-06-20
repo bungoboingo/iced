@@ -1,53 +1,46 @@
 //! A custom shader widget for wgpu applications.
-use crate::{Backend, Primitive};
+use crate::{renderer, Backend};
 use iced_core::layout::{Limits, Node};
 use iced_core::renderer::Style;
 use iced_core::widget::Tree;
 use iced_core::{
-    layout, Element, Layout, Length, Point, Rectangle, Size, Widget,
+    layout, widget, Element, Layout, Length, Point, Rectangle, Size, Widget,
 };
 use std::collections::hash_map::DefaultHasher;
 use std::fmt::{Debug, Formatter};
 use std::hash::{Hash, Hasher};
+use std::marker::PhantomData;
 
+mod primitive;
 mod program;
-use crate::primitive::CustomPipeline;
-pub use program::{Program, RenderStatus};
+mod storage;
 
-pub struct Shader {
+pub use primitive::Primitive;
+pub use program::Program;
+pub use storage::Storage;
+
+type Renderer<T> = crate::Renderer<wgpu::Backend, T>;
+
+pub struct Shader<Message, P: Program<Message>> {
     width: Length,
     height: Length,
-    init: fn(
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        target_size: Size<u32>,
-    ) -> Box<dyn Program + 'static>,
-    id: u64,
+    program: P,
+    _message: PhantomData<Message>,
 }
 
-impl Debug for Shader {
+impl<Message, P: Program<Message>> Debug for Shader<Message, P> {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         write!(f, "custom_shader_widget({:?})", self.id)
     }
 }
 
-impl Shader {
-    pub fn new(
-        init: fn(
-            device: &wgpu::Device,
-            format: wgpu::TextureFormat,
-            target_size: Size<u32>,
-        ) -> Box<dyn Program + 'static>,
-        id: impl Hash,
-    ) -> Self {
-        let mut hasher = DefaultHasher::new();
-        id.hash(&mut hasher);
-
+impl<Message, P: Program<Message>> Shader<Message, P> {
+    pub fn new(program: P) -> Self {
         Self {
-            width: Length::Fill,
-            height: Length::Fill,
-            init,
-            id: hasher.finish(),
+            width: Length::Fixed(100.0),
+            height: Length::Fixed(100.0),
+            program,
+            _message: PhantomData,
         }
     }
 
@@ -62,7 +55,10 @@ impl Shader {
     }
 }
 
-impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Shader {
+impl<P, Message, Theme> Widget<Message, Renderer<Theme>> for Shader<Message, P>
+where
+    P: Program<Message>,
+{
     fn width(&self) -> Length {
         self.width
     }
@@ -73,7 +69,7 @@ impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Shader {
 
     fn layout(
         &self,
-        _renderer: &crate::Renderer<B, T>,
+        _renderer: &Renderer<Theme>,
         limits: &Limits,
     ) -> Node {
         let limits = limits.width(self.width).height(self.height);
@@ -84,9 +80,9 @@ impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Shader {
 
     fn draw(
         &self,
-        _tree: &Tree,
-        renderer: &mut crate::Renderer<B, T>,
-        _theme: &T,
+        state: &widget::Tree,
+        renderer: &mut Renderer<Theme>,
+        _theme: &Theme,
         _style: &Style,
         layout: Layout<'_>,
         _cursor_position: Point,
@@ -94,26 +90,19 @@ impl<B: Backend, T, M> Widget<M, crate::Renderer<B, T>> for Shader {
     ) {
         let bounds = layout.bounds();
 
-        if bounds.width < 1.0 || bounds.height < 1.0 {
-            return;
-        }
-
-        renderer.draw_primitive(Primitive::Custom {
+        renderer.draw_primitive(crate::Primitive::Custom {
             bounds,
-            pipeline: CustomPipeline {
-                id: self.id,
-                init: self.init,
-            },
+            primitive: Box::new(self.program.draw(self.program.state())),
         })
     }
 }
 
-impl<'a, M, B, T> From<Shader> for Element<'a, M, crate::Renderer<B, T>>
+impl<'a, M, P, Theme> From<Shader<M, P>> for Element<'a, M, Renderer<Theme>>
 where
     M: 'a,
-    B: Backend,
+    P: Program<M>,
 {
-    fn from(custom: Shader) -> Element<'a, M, crate::Renderer<B, T>> {
+    fn from(custom: Shader<M, P>) -> Element<'a, M, Renderer<Theme>> {
         Element::new(custom)
     }
 }

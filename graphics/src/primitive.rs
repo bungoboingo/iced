@@ -7,6 +7,7 @@ use std::fmt::{Debug, Formatter};
 use crate::custom::Program;
 use bytemuck::{Pod, Zeroable};
 use std::sync::Arc;
+use crate::custom;
 
 /// A rendering primitive.
 #[derive(Debug, Clone, PartialEq)]
@@ -132,7 +133,7 @@ pub enum Primitive {
     #[cfg(feature = "wgpu")]
     Custom {
         bounds: Rectangle,
-        pipeline: CustomPipeline,
+        primitive: Box<dyn custom::Primitive>,
     },
 }
 
@@ -222,11 +223,6 @@ impl Primitive {
             Self::Cache { content } => content.bounds(),
         }
     }
-
-    #[cfg(feature = "wgpu")]
-    pub fn custom(bounds: Rectangle, pipeline: CustomPipeline) -> Self {
-        Self::Custom { bounds, pipeline }
-    }
 }
 
 /// A set of [`Vertex2D`] and indices representing a list of triangles.
@@ -263,22 +259,5 @@ pub struct ColoredVertex2D {
 impl From<()> for Primitive {
     fn from(_: ()) -> Self {
         Self::Group { primitives: vec![] }
-    }
-}
-
-/// An identifier for a custom pipeline.
-#[derive(Clone)]
-pub struct CustomPipeline {
-    pub id: u64,
-    pub init: fn(
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        target_size: Size<u32>,
-    ) -> Box<dyn Program + 'static>,
-}
-
-impl PartialEq for CustomPipeline {
-    fn eq(&self, other: &Self) -> bool {
-        other.id == self.id
     }
 }

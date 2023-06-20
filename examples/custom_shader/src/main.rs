@@ -1,8 +1,9 @@
 mod camera;
-mod cubes;
 mod cube;
+mod cubes;
+mod pipeline;
 
-use crate::cubes::Pipeline;
+use crate::cubes::{Cubes, Pipeline};
 use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
 use iced_graphics::Shader;
 
@@ -10,7 +11,10 @@ fn main() -> iced::Result {
     Example::run(iced::Settings::default())
 }
 
-struct Example;
+#[derive(Default)]
+struct Example {
+    cubes: Cubes,
+}
 
 #[derive(Debug, Clone)]
 enum Message {}
@@ -22,7 +26,7 @@ impl Application for Example {
     type Flags = ();
 
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
-        (Example {}, Command::none())
+        (Example::default(), Command::none())
     }
 
     fn title(&self) -> String {
@@ -36,7 +40,7 @@ impl Application for Example {
     }
 
     fn view(&self) -> Element<'_, Self::Message, Renderer<Self::Theme>> {
-        Shader::new(Pipeline::init, 0)
+        Shader::new(&self.cubes)
             .width(Length::Fill)
             .height(Length::Fill)
             .into()

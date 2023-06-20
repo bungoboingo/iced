@@ -5,6 +5,8 @@ mod text;
 
 pub mod mesh;
 
+use std::ops::Deref;
+use iced_graphics::custom;
 pub use image::Image;
 pub use mesh::Mesh;
 pub use quad::Quad;
@@ -34,7 +36,7 @@ pub struct Layer<'a> {
     pub images: Vec<Image>,
 
     /// The custom primitives of this [`Layer`].
-    pub custom: Vec<u64>,
+    pub custom: Vec<Box<dyn custom::Primitive>>,
 }
 
 impl<'a> Layer<'a> {
@@ -87,10 +89,6 @@ impl<'a> Layer<'a> {
     /// on its contents.
     pub fn generate(
         primitives: &'a [Primitive],
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        target_size: Size<u32>,
-        pipelines: &mut Pipelines,
         viewport: &Viewport,
     ) -> Vec<Self> {
         let first_layer =
@@ -101,10 +99,6 @@ impl<'a> Layer<'a> {
         for primitive in primitives {
             Self::process_primitive(
                 &mut layers,
-                device,
-                format,
-                target_size,
-                pipelines,
                 Vector::new(0.0, 0.0),
                 primitive,
                 0,
@@ -116,10 +110,6 @@ impl<'a> Layer<'a> {
 
     fn process_primitive(
         layers: &mut Vec<Self>,
-        device: &wgpu::Device,
-        format: wgpu::TextureFormat,
-        target_size: Size<u32>,
-        pipelines: &mut Pipelines,
         translation: Vector,
         primitive: &'a Primitive,
         current_layer: usize,
@@ -235,10 +225,6 @@ impl<'a> Layer<'a> {
                 for primitive in primitives {
                     Self::process_primitive(
                         layers,
-                        device,
-                        format,
-                        target_size,
-                        pipelines,
                         translation,
                         primitive,
                         current_layer,
@@ -258,10 +244,6 @@ impl<'a> Layer<'a> {
 
                     Self::process_primitive(
                         layers,
-                        device,
-                        format,
-                        target_size,
-                        pipelines,
                         translation,
                         content,
                         layers.len() - 1,
@@ -274,10 +256,6 @@ impl<'a> Layer<'a> {
             } => {
                 Self::process_primitive(
                     layers,
-                    device,
-                    format,
-                    target_size,
-                    pipelines,
                     translation + *new_translation,
                     content,
                     current_layer,
@@ -287,26 +265,21 @@ impl<'a> Layer<'a> {
                 Self::process_primitive(
                     layers,
                     device,
-                    format,
-                    target_size,
-                    pipelines,
-                    translation,
                     content,
                     current_layer,
                 );
             }
-            Primitive::Custom {  pipeline, .. } => {
+            Primitive::Custom {  bounds, primitive } => {
                 let layer = &mut layers[current_layer];
-                // first add the pipeline ref to the layer if it doesn't exist
-                if let None = layer.custom.iter().find(|id| *id == &pipeline.id) {
-                    layer.custom.push(pipeline.id);
-                }
 
-                // now cache the pipeline & initialize the renderable to the list of pipelines if if doesn't exist
-                if pipelines.get(&pipeline.id).is_none() {
-                    let _ = pipelines.insert(pipeline.id, (pipeline.init)(
-                        device, format, target_size,
-                    ));
+                let bounds = Rectangle::new(
+                    Point::new(translation.x, translation.y),
+                    bounds.size(),
+                );
+
+                // Only draw visible content
+                if layer.bounds.intersection(&bounds).is_some() {
+                    layer.custom.push(Box::new(primitive.deref()));
                 }
             }
             _ => {

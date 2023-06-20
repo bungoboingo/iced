@@ -13,12 +13,11 @@ use tracing::info_span;
 #[cfg(any(feature = "image", feature = "svg"))]
 use crate::image;
 
+use iced_graphics::custom;
+use iced_graphics::custom::{Program, RenderStatus};
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::time::{Duration, Instant};
-use iced_graphics::custom::{Program, RenderStatus};
-
-pub(crate) type Pipelines = HashMap<u64, Box<dyn Program + 'static>>;
 
 /// A [`wgpu`] graphics backend for [`iced`].
 ///
@@ -29,18 +28,13 @@ pub struct Backend {
     quad_pipeline: quad::Pipeline,
     text_pipeline: text::Pipeline,
     triangle_pipeline: triangle::Pipeline,
+    custom_pipelines: custom::Storage,
 
     #[cfg(any(feature = "image", feature = "svg"))]
     image_pipeline: image::Pipeline,
 
-    /// The custom primitives of a [`Layer`].
-    pipelines: Pipelines,
-
     default_font: Font,
     default_text_size: f32,
-
-    start_time: Instant,
-    duration_since_start: Duration,
 }
 
 impl Backend {
@@ -63,15 +57,13 @@ impl Backend {
             quad_pipeline,
             text_pipeline,
             triangle_pipeline,
+            custom_pipelines: custom::Storage::default(),
 
             #[cfg(any(feature = "image", feature = "svg"))]
             image_pipeline,
 
-            pipelines: HashMap::new(),
             default_font: settings.default_font,
             default_text_size: settings.default_text_size,
-            start_time: Instant::now(),
-            duration_since_start: Duration::new(0, 0),
         }
     }
 
@@ -100,19 +92,13 @@ impl Backend {
         let transformation = viewport.projection();
         self.duration_since_start = Instant::now() - self.start_time;
 
-        let mut layers = Layer::generate(
-            primitives,
-            device,
-            format,
-            target_size,
-            &mut self.pipelines,
-            viewport,
-        );
+        let mut layers = Layer::generate(primitives, viewport);
         layers.push(Layer::overlay(overlay_text, viewport));
 
         self.prepare(
             device,
             queue,
+            format,
             encoder,
             scale_factor,
             transformation,
@@ -183,6 +169,7 @@ impl Backend {
         &mut self,
         device: &wgpu::Device,
         queue: &wgpu::Queue,
+        format: wgpu::TextureFormat,
         encoder: &mut wgpu::CommandEncoder,
         scale_factor: f32,
         transformation: Transformation,
@@ -235,17 +222,14 @@ impl Backend {
             }
 
             if !layer.custom.is_empty() {
-                for id in &layer.custom {
-                    if let Some(renderable) = self.pipelines.get_mut(id) {
-                        renderable.update(
-                            device,
-                            queue,
-                            encoder,
-                            scale_factor,
-                            transformation,
-                            self.duration_since_start,
-                        );
-                    }
+                for primitive in &layer.custom {
+                    primitive.prepare(
+                        format,
+                        device,
+                        queue,
+                        target_size,
+                        &mut self.custom_pipelines,
+                    );
                 }
             }
         }
@@ -366,23 +350,22 @@ impl Backend {
                 text_layer += 1;
             }
 
+            // kill render pass to let custom shaders get mut access to encoder
             let _ = ManuallyDrop::into_inner(render_pass);
 
             if !layer.custom.is_empty() {
-                for custom in &layer.custom {
-                    if let Some(renderable) = self.pipelines.get(custom) {
-                        render_state = renderable.render(
-                            encoder,
-                            device,
-                            target,
-                            clear_color,
-                            scale_factor,
-                            target_size,
-                        );
-                    }
+                for primitive in &layer.custom {
+                    primitive.render(
+                        &self.custom_pipelines,
+                        bounds,
+                        target,
+                        target_size,
+                        encoder,
+                    );
                 }
             }
 
+            // recreate and continue processing layers
             render_pass = ManuallyDrop::new(encoder.begin_render_pass(
                 &wgpu::RenderPassDescriptor {
                     label: Some("iced_wgpu::quad render pass"),

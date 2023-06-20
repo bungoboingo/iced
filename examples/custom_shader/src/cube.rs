@@ -1,227 +1,138 @@
+mod raw;
+mod uniforms;
+pub mod vertex_3d;
+
+use crate::camera::Camera;
+use crate::cube::uniforms::Uniforms;
+use crate::cube::vertex_3d::{v3d, Vertex3D};
+use crate::cubes::Cubes;
+use crate::pipeline::{Pipeline, Uniforms};
 use glam::{vec3, Vec2, Vec3};
-use iced::Color;
+use iced::{Color, Rectangle, Size};
+use iced_graphics::custom::{self, Storage};
+pub use raw::Raw;
+use std::iter;
+use std::time::Duration;
+use wgpu::{CommandEncoder, Device, Queue, TextureFormat, TextureView};
 
-#[derive(bytemuck::Pod, bytemuck::Zeroable, Copy, Clone, Debug)]
-#[repr(C)]
-pub struct Vertex3D {
-    position: glam::Vec3,
-    tex_coords: glam::Vec2,
-    normal: glam::Vec3,
-    color: [f32; 4],
-}
-
-impl Vertex3D {
-    const ATTRIBS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
-        //position
-        0 => Float32x3,
-        //tex_coords
-        1 => Float32x2,
-        //normal
-        2 => Float32x3,
-        //color
-        3 => Float32x4,
-    ];
-
-    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Vertex,
-            attributes: &Self::ATTRIBS,
-        }
-    }
-}
-
-fn v3d(
-    position: Vec3,
-    tex_coords: Vec2,
-    normal: Vec3,
-    color: Color,
-) -> Vertex3D {
-    Vertex3D {
-        position,
-        tex_coords,
-        normal,
-        color: color.into_linear(),
-    }
-}
-
+/// A single instance of a cube, defined by its size and rotation.
 pub struct Cube {
     pub rotation: glam::Quat,
     pub position: Vec3,
-    pub _padding: f32,
+    pub size: f32,
 }
 
-#[derive(Clone, Copy, bytemuck::Pod, bytemuck::Zeroable, Debug)]
-#[repr(C)]
-pub struct CubeRaw(glam::Mat4);
-
-impl CubeRaw {
-    const ATTRIBS: [wgpu::VertexAttribute; 4] = wgpu::vertex_attr_array![
-        //mat4
-        5 => Float32x4,
-        6 => Float32x4,
-        7 => Float32x4,
-        8 => Float32x4,
-    ];
-
-    pub fn desc<'a>() -> wgpu::VertexBufferLayout<'a> {
-        wgpu::VertexBufferLayout {
-            array_stride: std::mem::size_of::<Self>() as wgpu::BufferAddress,
-            step_mode: wgpu::VertexStepMode::Instance,
-            attributes: &Self::ATTRIBS,
+impl Cube {
+    /// Creates a new [`Cube`] with the specified `size`.
+    pub fn new(size: usize, origin: Vec3) -> Self {
+        Self {
+            rotation: glam::Quat::default(),
+            position: origin + Vec3::new(0.1, 0.1, 0.1), //todo IDK
+            size: size as f32,
         }
     }
 }
 
-const FRONT_TOP_LEFT: Vec3 = vec3(-1.0, -1.0, 1.0);
-const FRONT_TOP_RIGHT: Vec3 = vec3(1.0, -1.0, 1.0);
-const FRONT_BOTTOM_RIGHT: Vec3 = vec3(1.0, -1.0, -1.0);
-const FRONT_BOTTOM_LEFT: Vec3 = vec3(-1.0, -1.0, -1.0);
+/// A collection of `Cube`s that can be rendered.
+pub struct Primitive {
+    cubes: Vec<Cube>,
+    uniforms: Uniforms,
+}
 
-const BACK_BOTTOM_LEFT: Vec3 = vec3(-1.0, 1.0, -1.0);
-const BACK_TOP_LEFT: Vec3 = vec3(-1.0, 1.0, 1.0);
-const BACK_TOP_RIGHT: Vec3 = vec3(1.0, 1.0, 1.0);
-const BACK_BOTTOM_RIGHT: Vec3 = vec3(1.0, 1.0, -1.0);
+impl Primitive {
+    pub fn new(
+        size: usize,
+        amount: usize,
+        camera: &Camera,
+        time: Duration,
+    ) -> Self {
+        let mut cubes = 0;
+        let mut uniforms = Uniforms::new();
+        uniforms.update(camera, time);
+        let mut origin = Vec3::ZERO;
 
-impl Cube {
-    pub fn to_raw(&self) -> CubeRaw {
-        CubeRaw(glam::Mat4::from_rotation_translation(
-            self.rotation,
-            self.position,
-        ))
+        Self {
+            cubes: Vec::from_iter(iter::from_fn(move || {
+                if cubes < amount {
+                    cubes += 1;
+                    let cube = Some(Cube::new(size, origin));
+                    origin += Vec3::new(0.1, 0.1, 0.1); //TODO idk
+                    cube
+                } else {
+                    None
+                }
+            })),
+            uniforms,
+        }
     }
 
-    // could create this with normals
-    pub fn vertices(scale: f32) -> [Vertex3D; 24] {
-        let front_n: Vec3 =
-            normal_of(FRONT_TOP_LEFT, FRONT_TOP_RIGHT, FRONT_BOTTOM_RIGHT);
-        let left_n: Vec3 =
-            normal_of(BACK_TOP_LEFT, FRONT_TOP_LEFT, FRONT_BOTTOM_LEFT);
-        let back_n: Vec3 =
-            normal_of(BACK_TOP_LEFT, BACK_TOP_RIGHT, BACK_BOTTOM_RIGHT);
-        let right_n: Vec3 =
-            normal_of(BACK_TOP_RIGHT, FRONT_TOP_RIGHT, FRONT_BOTTOM_RIGHT);
-        let bottom_n: Vec3 =
-            normal_of(FRONT_BOTTOM_LEFT, BACK_BOTTOM_LEFT, BACK_BOTTOM_RIGHT);
-        let top_n: Vec3 =
-            normal_of(FRONT_TOP_LEFT, BACK_TOP_LEFT, BACK_TOP_RIGHT);
-
-        let light_blue_front_bottom = Color::from_rgba8(75, 118, 156, 0.8);
-        let light_blue_front_top = Color::from_rgba8(179, 245, 255, 0.8);
-        let darker_blue_back_bottom = Color::from_rgba8(48, 86, 120, 0.8);
-        let darker_blue_back_top = Color::from_rgba8(115, 208, 222, 0.8);
-
-        [
-            //front vertices
-            v3d(FRONT_TOP_LEFT * scale, Vec2::ZERO, front_n, light_blue_front_top),
-            v3d(FRONT_TOP_RIGHT * scale, Vec2::ZERO, front_n, light_blue_front_top),
-            v3d(
-                FRONT_BOTTOM_RIGHT * scale,
-                Vec2::ZERO,
-                front_n,
-                light_blue_front_bottom,
-            ),
-            v3d(
-                FRONT_BOTTOM_LEFT * scale,
-                Vec2::ZERO,
-                front_n,
-                light_blue_front_bottom,
-            ),
-            //left vertices
-            v3d(BACK_TOP_LEFT * scale, Vec2::ZERO, left_n, darker_blue_back_top),
-            v3d(FRONT_TOP_LEFT * scale, Vec2::ZERO, left_n, light_blue_front_top),
-            v3d(
-                FRONT_BOTTOM_LEFT * scale,
-                Vec2::ZERO,
-                left_n,
-                light_blue_front_bottom,
-            ),
-            v3d(
-                BACK_BOTTOM_LEFT * scale,
-                Vec2::ZERO,
-                left_n,
-                darker_blue_back_bottom,
-            ),
-            //back vertices
-            v3d(BACK_TOP_RIGHT * scale, Vec2::ZERO, back_n, darker_blue_back_top),
-            v3d(BACK_TOP_LEFT * scale, Vec2::ZERO, back_n, darker_blue_back_top),
-            v3d(
-                BACK_BOTTOM_LEFT * scale,
-                Vec2::ZERO,
-                back_n,
-                darker_blue_back_bottom,
-            ),
-            v3d(
-                BACK_BOTTOM_RIGHT * scale,
-                Vec2::ZERO,
-                back_n,
-                darker_blue_back_bottom,
-            ),
-            //right vertices
-            v3d(FRONT_TOP_RIGHT * scale, Vec2::ZERO, right_n, darker_blue_back_top),
-            v3d(BACK_TOP_RIGHT * scale, Vec2::ZERO, right_n, light_blue_front_top),
-            v3d(
-                BACK_BOTTOM_RIGHT * scale,
-                Vec2::ZERO,
-                right_n,
-                light_blue_front_bottom,
-            ),
-            v3d(
-                FRONT_BOTTOM_RIGHT * scale,
-                Vec2::ZERO,
-                right_n,
-                darker_blue_back_bottom,
-            ),
-            //bottom vertices
-            v3d(
-                FRONT_BOTTOM_LEFT * scale,
-                Vec2::ZERO,
-                bottom_n,
-                light_blue_front_bottom,
-            ),
-            v3d(
-                BACK_BOTTOM_LEFT * scale,
-                Vec2::ZERO,
-                bottom_n,
-                darker_blue_back_bottom,
-            ),
-            v3d(
-                BACK_BOTTOM_RIGHT * scale,
-                Vec2::ZERO,
-                bottom_n,
-                darker_blue_back_bottom,
-            ),
-            v3d(
-                FRONT_BOTTOM_RIGHT * scale,
-                Vec2::ZERO,
-                bottom_n,
-                light_blue_front_bottom,
-            ),
-            //top vertices
-            v3d(FRONT_TOP_LEFT * scale, Vec2::ZERO, top_n, light_blue_front_top),
-            v3d(BACK_TOP_LEFT * scale, Vec2::ZERO, top_n, darker_blue_back_top),
-            v3d(BACK_TOP_RIGHT * scale, Vec2::ZERO, top_n, darker_blue_back_top),
-            v3d(FRONT_TOP_RIGHT * scale, Vec2::ZERO, top_n, light_blue_front_top),
-        ]
+    pub fn raw_cubes(&self) -> &[CubeRaw] {
+        self.cubes
+            .iter()
+            .map(Raw::from_cube)
+            .collect::<Vec<CubeRaw>>()
+            .as_slice()
     }
 }
 
-//TODO can I just calc from two verts..?
-fn normal_of(vert_1: Vec3, vert_2: Vec3, vert_3: Vec3) -> Vec3 {
-    let u = vec3(
-        vert_2.x - vert_1.x,
-        vert_2.y - vert_1.y,
-        vert_2.z - vert_1.z,
-    );
-    let v = vec3(
-        vert_3.x - vert_1.x,
-        vert_3.y - vert_1.y,
-        vert_3.z - vert_1.z,
-    );
+impl custom::Primitive for Primitive {
+    fn prepare(
+        &self,
+        format: TextureFormat,
+        device: &Device,
+        queue: &Queue,
+        target_size: Size<u32>,
+        storage: &mut Storage,
+    ) {
+        //TODO cleanup how this is accessed; always get back a mut pipeline ref here..?
+        //first find pipeline
+        let pipeline = if let Some(pipeline) = storage.get_mut::<Pipeline>() {
+            pipeline
+        } else {
+            storage.store(Pipeline::new(device, format, target_size));
+        };
 
-    vec3(
-        (u.y * v.z) - (u.z * v.y),
-        (u.z * v.x) - (u.x * v.z),
-        (u.x * v.y) - (u.y * v.x),
-    )
+        //recreate depth texture if size has changed
+        pipeline.update_depth_texture(device, target_size);
+
+        // update uniforms
+        queue.write_buffer(
+            &pipeline.uniforms,
+            0,
+            bytemuck::bytes_of(&self.uniforms),
+        );
+
+        //resize cubes vertex buffer if cubes amt changed
+        let new_size = self.cubes.len() * std::mem::size_of::<CubeRaw>();
+
+        //only grow
+        if new_size > pipeline.cubes_buffer_size {
+            pipeline.vertices = device.create_buffer(&wgpu::BufferDescriptor {
+                label: Some("cubes.vertex_buffer"),
+                size: new_size as u64,
+                usage: wgpu::BufferUsages::VERTEX,
+                mapped_at_creation: false,
+            })
+        };
+
+        queue.write_buffer(
+            &pipeline.cubes_buffer,
+            0,
+            bytemuck::bytes_of(self.raw_cubes()),
+        );
+    }
+
+    fn render(
+        &self,
+        storage: &Storage,
+        bounds: Rectangle<u32>,
+        target: &TextureView,
+        _target_size: Size<u32>,
+        encoder: &mut CommandEncoder,
+    ) {
+        //TODO cleanup
+        if let Some(pipeline) = storage.get::<Pipeline>() {
+            pipeline.render(target, encoder, bounds, self.cubes.len() as u32)
+        }
+    }
 }
