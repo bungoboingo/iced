@@ -79,7 +79,7 @@ impl<Theme> crate::graphics::Compositor for Compositor<Theme> {
         viewport: &Viewport,
         background_color: Color,
         overlay: &[T],
-    ) -> Result<bool, SurfaceError> {
+    ) -> Result<(), SurfaceError> {
         renderer.with_primitives(|backend, primitives| {
             present(
                 backend,
@@ -109,7 +109,7 @@ pub fn present<T: AsRef<str>>(
     viewport: &Viewport,
     background_color: Color,
     overlay: &[T],
-) -> Result<bool, compositor::SurfaceError> {
+) -> Result<(), compositor::SurfaceError> {
     let physical_size = viewport.physical_size();
     let scale_factor = viewport.scale_factor() as f32;
 
@@ -130,7 +130,7 @@ pub fn present<T: AsRef<str>>(
         .unwrap_or_else(|| vec![Rectangle::with_size(viewport.logical_size())]);
 
     if damage.is_empty() {
-        return Ok(false);
+        return Ok(());
     }
 
     surface.primitives = Some(primitives.to_vec());
@@ -154,5 +154,5 @@ pub fn present<T: AsRef<str>>(
         physical_size.height as u16,
     );
 
-    Ok(false)
+    Ok(())
 }

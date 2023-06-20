@@ -15,10 +15,7 @@ use tracing::info_span;
 use crate::image;
 
 use iced_graphics::custom;
-use iced_graphics::custom::{Program, RenderStatus};
 use std::borrow::Cow;
-use std::collections::HashMap;
-use std::time::{Duration, Instant};
 
 /// A [`wgpu`] graphics backend for [`iced`].
 ///
@@ -83,7 +80,7 @@ impl Backend {
         primitives: &[Primitive],
         viewport: &Viewport,
         overlay_text: &[T],
-    ) -> RenderStatus {
+    ) {
         log::debug!("Drawing");
         #[cfg(feature = "tracing")]
         let _ = info_span!("Wgpu::Backend", "PRESENT").entered();
@@ -91,7 +88,6 @@ impl Backend {
         let target_size = viewport.physical_size();
         let scale_factor = viewport.scale_factor() as f32;
         let transformation = viewport.projection();
-        self.duration_since_start = Instant::now() - self.start_time;
 
         let mut layers = Layer::generate(primitives, viewport);
         layers.push(Layer::overlay(overlay_text, viewport));
@@ -100,6 +96,7 @@ impl Backend {
             device,
             queue,
             format,
+            target_size,
             encoder,
             scale_factor,
             transformation,
@@ -114,7 +111,7 @@ impl Backend {
             &layers,
         ) {}
 
-        let render_state = self.render(
+        self.render(
             device,
             encoder,
             frame,
@@ -130,8 +127,6 @@ impl Backend {
 
         #[cfg(any(feature = "image", feature = "svg"))]
         self.image_pipeline.end_frame();
-
-        render_state
     }
 
     fn prepare_text(
@@ -171,7 +166,8 @@ impl Backend {
         device: &wgpu::Device,
         queue: &wgpu::Queue,
         format: wgpu::TextureFormat,
-        encoder: &mut wgpu::CommandEncoder,
+        target_size: Size<u32>,
+        _encoder: &mut wgpu::CommandEncoder,
         scale_factor: f32,
         transformation: Transformation,
         layers: &[Layer<'_>],
@@ -214,7 +210,7 @@ impl Backend {
                     self.image_pipeline.prepare(
                         device,
                         queue,
-                        encoder,
+                        _encoder,
                         &layer.images,
                         scaled,
                         scale_factor,
@@ -223,12 +219,14 @@ impl Backend {
             }
 
             if !layer.custom.is_empty() {
-                for primitive in &layer.custom {
-                    primitive.prepare(
+                for custom in &layer.custom {
+                    custom.primitive.prepare(
                         format,
                         device,
                         queue,
                         target_size,
+                        scale_factor,
+                        transformation,
                         &mut self.custom_pipelines,
                     );
                 }
@@ -245,10 +243,9 @@ impl Backend {
         scale_factor: f32,
         target_size: Size<u32>,
         layers: &[Layer<'_>],
-    ) -> RenderStatus {
+    ) {
         use std::mem::ManuallyDrop;
 
-        let mut render_state = RenderStatus::None;
         let mut quad_layer = 0;
         let mut triangle_layer = 0;
         #[cfg(any(feature = "image", feature = "svg"))]
@@ -287,7 +284,7 @@ impl Backend {
             let bounds = (layer.bounds * scale_factor).snap();
 
             if bounds.width < 1 || bounds.height < 1 {
-                return render_state;
+                return;
             }
 
             if !layer.quads.is_empty() {
@@ -304,7 +301,6 @@ impl Backend {
             if !layer.meshes.is_empty() {
                 let _ = ManuallyDrop::into_inner(render_pass);
 
-                // has it's own render pass
                 self.triangle_pipeline.render(
                     device,
                     encoder,
@@ -359,10 +355,10 @@ impl Backend {
             let _ = ManuallyDrop::into_inner(render_pass);
 
             if !layer.custom.is_empty() {
-                for primitive in &layer.custom {
-                    primitive.render(
+                for custom in &layer.custom {
+                    custom.primitive.render(
                         &self.custom_pipelines,
-                        bounds,
+                        (custom.bounds * scale_factor).into(),
                         target,
                         target_size,
                         encoder,
@@ -389,7 +385,7 @@ impl Backend {
             ));
         }
 
-        render_state
+        let _ = ManuallyDrop::into_inner(render_pass);
     }
 }
 

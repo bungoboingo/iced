@@ -1,5 +1,6 @@
 use glam::{mat4, vec3, vec4};
 
+#[derive(Copy, Clone)]
 pub struct Camera {
     pub eye: glam::Vec3,
     target: glam::Vec3,
@@ -16,7 +17,7 @@ impl Default for Camera {
             eye: vec3(0.0, 2.0, 3.0),
             target: glam::Vec3::ZERO,
             up: glam::Vec3::Y,
-            aspect: 1024.0/768.0,
+            aspect: 1024.0 / 768.0,
             fov_y: 45.0,
             near: 0.1,
             far: 100.0,
@@ -34,8 +35,13 @@ pub const OPENGL_TO_WGPU_MATRIX: glam::Mat4 = mat4(
 impl Camera {
     pub fn build_view_proj_matrix(&self) -> glam::Mat4 {
         let view = glam::Mat4::look_at_rh(self.eye, self.target, self.up);
-        let proj = glam::Mat4::perspective_rh(self.fov_y, self.aspect, self.near, self.far);
+        let proj = glam::Mat4::perspective_rh(
+            self.fov_y,
+            self.aspect,
+            self.near,
+            self.far,
+        );
 
-        return OPENGL_TO_WGPU_MATRIX * proj * view;
+        OPENGL_TO_WGPU_MATRIX * proj * view
     }
 }

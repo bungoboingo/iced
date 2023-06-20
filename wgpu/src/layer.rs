@@ -4,12 +4,10 @@ mod text;
 
 pub mod mesh;
 
-use std::ops::Deref;
-use iced_graphics::custom;
+use iced_graphics::primitive;
 pub use image::Image;
 pub use mesh::Mesh;
 pub use text::Text;
-use crate::backend::Pipelines;
 
 use crate::core;
 use crate::core::alignment;
@@ -37,7 +35,7 @@ pub struct Layer<'a> {
     pub images: Vec<Image>,
 
     /// The custom primitives of this [`Layer`].
-    pub custom: Vec<Box<dyn custom::Primitive>>,
+    pub custom: Vec<primitive::Custom>,
 }
 
 impl<'a> Layer<'a> {
@@ -264,22 +262,21 @@ impl<'a> Layer<'a> {
             Primitive::Cache { content } => {
                 Self::process_primitive(
                     layers,
-                    device,
+                    translation,
                     content,
                     current_layer,
                 );
             }
-            Primitive::Custom {  bounds, primitive } => {
+            Primitive::Custom(custom_primitive) => {
                 let layer = &mut layers[current_layer];
 
                 let bounds = Rectangle::new(
                     Point::new(translation.x, translation.y),
-                    bounds.size(),
+                    custom_primitive.bounds.size(),
                 );
 
-                // Only draw visible content
                 if layer.bounds.intersection(&bounds).is_some() {
-                    layer.custom.push(Box::new(primitive.deref()));
+                    layer.custom.push(custom_primitive.clone());
                 }
             }
             _ => {

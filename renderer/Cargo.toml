@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [features]
-wgpu = ["iced_wgpu"]
+wgpu = ["iced_wgpu", "iced_graphics/wgpu"]
 image = ["iced_tiny_skia/image", "iced_wgpu?/image"]
 svg = ["iced_tiny_skia/svg", "iced_wgpu?/svg"]
 geometry = ["iced_graphics/geometry", "iced_tiny_skia/geometry", "iced_wgpu?/geometry"]

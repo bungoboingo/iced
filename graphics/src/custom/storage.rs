@@ -1,32 +1,37 @@
 use std::any::{Any, TypeId};
 use std::collections::HashMap;
 
-#[derive(Default)]
+#[derive(Default, Debug)]
+/// Stores pipelines.
 pub struct Storage {
     pipelines: HashMap<TypeId, Box<dyn Any>>,
 }
 
 impl Storage {
-    pub fn get<T>(&self) -> Option<&T> {
-        self.pipelines
-            .get(&T::type_id())
-            .map(|pipeline| pipeline.downcast_ref::<T>())
-            .flatten()
+    /// Returns `true` if `Storage` contains a pipeline with type `T`.
+    pub fn has<T: 'static>(&self) -> bool {
+        self.pipelines.get(&TypeId::of::<T>()).is_some()
     }
 
-    pub fn get_mut<T>(&mut self) -> Option<&mut T> {
-        self.pipelines
-            .get_mut(&T::type_id())
-            .map(|pipeline| pipeline.downcast_mut::<T>())
-            .flatten()
+    /// Inserts the pipeline `T` in [`Storage`].
+    pub fn store<T: 'static>(&mut self, pipeline: T) {
+        let _ = self.pipelines.insert(TypeId::of::<T>(), Box::new(pipeline));
     }
 
-    pub fn store<T>(&mut self, mut pipeline: T) -> &mut T {
-        if self.pipelines.get(&T::type_id()).is_none() {
-            //pipeline not currently stored. Maybe we should replace it?
-            self.pipelines.insert(T::type_id(), Box::new(pipeline))
-        }
+    /// Returns a reference to pipeline with type `T` if it exists in [`Storage`].
+    pub fn get<T: 'static>(&self) -> Option<&T> {
+        self.pipelines.get(&TypeId::of::<T>()).map(|pipeline| {
+            pipeline
+                .downcast_ref::<T>()
+                .expect("Pipeline with this type does not exist in Storage.")
+        })
+    }
 
-        &mut pipeline
+    /// Returns a mutable reference to pipeline `T` if it exists in [`Storage`].
+    pub fn get_mut<T: 'static>(&mut self) -> Option<&mut T> {
+        self.pipelines.get_mut(&TypeId::of::<T>()).map(|pipeline| {
+            pipeline.downcast_mut::<T>()
+                .expect("Pipeline with this type does not exist in Storage.")
+        })
     }
 }

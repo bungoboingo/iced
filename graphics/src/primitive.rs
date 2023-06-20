@@ -1,4 +1,3 @@
-use std::fmt::{Debug, Formatter};
 //! Draw using different graphical primitives.
 use crate::color;
 use crate::core::alignment;
@@ -6,12 +5,13 @@ use crate::core::image;
 use crate::core::svg;
 use crate::core::text;
 use crate::core::{Background, Color, Font, Rectangle, Size, Vector};
-use crate::gradient;
-
-use crate::custom::Program;
-use bytemuck::{Pod, Zeroable};
-use std::sync::Arc;
 use crate::custom;
+use crate::gradient;
+use bytemuck::{Pod, Zeroable};
+use std::any::Any;
+use std::fmt::{Debug, Formatter};
+use std::rc::Rc;
+use std::sync::Arc;
 
 /// A rendering primitive.
 #[derive(Debug, Clone, PartialEq)]
@@ -145,17 +145,8 @@ pub enum Primitive {
         /// The cached primitive
         content: Arc<Primitive>,
     },
-    #[cfg(feature = "wgpu")]
-    Custom {
-        bounds: Rectangle,
-        primitive: Box<dyn custom::Primitive>,
-    },
-}
-
-impl Debug for CustomPipeline {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "CustomPipeline id: {:?}", self.id)
-    }
+    /// A custom primitive.
+    Custom(Custom),
 }
 
 impl Primitive {
@@ -212,7 +203,9 @@ impl Primitive {
             Self::Quad { bounds, .. }
             | Self::Image { bounds, .. }
             | Self::Svg { bounds, .. }
-            | Self::Custom { bounds, .. } => bounds.expand(1.0),
+            | Self::Custom(Custom { bounds, .. }) => {
+                bounds.expand(1.0)
+            }
             Self::Clip { bounds, .. } => bounds.expand(1.0),
             Self::SolidMesh { size, .. } | Self::GradientMesh { size, .. } => {
                 Rectangle::with_size(*size)
@@ -241,6 +234,17 @@ impl Primitive {
             } => content.bounds() + *translation,
             Self::Cache { content } => content.bounds(),
         }
+    }
+
+    /// Create a custom `[Primitive`].
+    pub fn custom<P: custom::Primitive>(
+        bounds: Rectangle,
+        primitive: P,
+    ) -> Self {
+        Self::Custom(Custom {
+            bounds,
+            primitive: Rc::new(primitive),
+        })
     }
 }
 
@@ -287,5 +291,28 @@ unsafe impl Pod for GradientVertex2D {}
 impl From<()> for Primitive {
     fn from(_: ()) -> Self {
         Self::Group { primitives: vec![] }
+    }
+}
+
+#[derive(Clone)]
+/// A custom primitive which can be used to render primitives associated with a custom pipeline.
+pub struct Custom {
+    /// The bounds of the [`Custom`].
+    pub bounds: Rectangle,
+
+    /// The [`custom::Primitive`] to render.
+    pub primitive: Rc<dyn custom::Primitive>,
+}
+
+impl Debug for Custom {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "CustomPrimitive")
+    }
+}
+
+//TODO actual partial eq; don't actually need it now since it's not used with tiny-skia
+impl PartialEq for Custom {
+    fn eq(&self, other: &Self) -> bool {
+        self.type_id() == other.type_id()
     }
 }

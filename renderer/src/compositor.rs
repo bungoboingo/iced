@@ -99,7 +99,7 @@ impl<Theme> crate::graphics::Compositor for Compositor<Theme> {
         viewport: &Viewport,
         background_color: Color,
         overlay: &[T],
-    ) -> Result<bool, SurfaceError> {
+    ) -> Result<(), SurfaceError> {
         renderer.with_primitives(|backend, primitives| {
             match (self, backend, surface) {
                 (

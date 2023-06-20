@@ -58,7 +58,7 @@ pub trait Compositor: Sized {
         viewport: &Viewport,
         background_color: Color,
         overlay: &[T],
-    ) -> Result<bool, SurfaceError>;
+    ) -> Result<(), SurfaceError>;
 }
 
 /// Result of an unsuccessful call to [`Compositor::present`].
