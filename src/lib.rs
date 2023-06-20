@@ -163,7 +163,7 @@
 )]
 #![forbid(rust_2018_idioms, unsafe_code)]
 #![allow(clippy::inherent_to_string, clippy::type_complexity)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 use iced_widget::graphics;
 use iced_widget::renderer;
 use iced_widget::style;
@@ -188,9 +188,10 @@ pub use style::theme;
 
 pub use crate::core::alignment;
 pub use crate::core::event;
+pub use crate::core::gradient;
 pub use crate::core::{
-    color, Alignment, Background, Color, ContentFit, Length, Padding, Pixels,
-    Point, Rectangle, Size, Vector,
+    color, Alignment, Background, Color, ContentFit, Degrees, Gradient, Length,
+    Padding, Pixels, Point, Radians, Rectangle, Size, Vector,
 };
 pub use crate::runtime::Command;
 
@@ -229,7 +230,9 @@ pub mod keyboard {
 
 pub mod mouse {
     //! Listen and react to mouse events.
-    pub use crate::core::mouse::{Button, Event, Interaction, ScrollDelta};
+    pub use crate::core::mouse::{
+        Button, Cursor, Event, Interaction, ScrollDelta,
+    };
 }
 
 pub mod subscription {

@@ -7,8 +7,8 @@ use crate::core::renderer;
 use crate::core::text;
 use crate::core::widget::Tree;
 use crate::core::{
-    Alignment, Clipboard, Element, Event, Layout, Length, Pixels, Point,
-    Rectangle, Shell, Widget,
+    Alignment, Clipboard, Element, Event, Layout, Length, Pixels, Rectangle,
+    Shell, Widget,
 };
 use crate::{Row, Text};
 
@@ -42,7 +42,9 @@ where
     width: Length,
     size: f32,
     text_size: Option<f32>,
+    text_line_height: text::LineHeight,
     text_alignment: alignment::Horizontal,
+    text_shaping: text::Shaping,
     spacing: f32,
     font: Option<Renderer::Font>,
     style: <Renderer::Theme as StyleSheet>::Style,
@@ -79,7 +81,9 @@ where
             width: Length::Fill,
             size: Self::DEFAULT_SIZE,
             text_size: None,
+            text_line_height: text::LineHeight::default(),
             text_alignment: alignment::Horizontal::Left,
+            text_shaping: text::Shaping::Basic,
             spacing: 0.0,
             font: None,
             style: Default::default(),
@@ -104,9 +108,24 @@ where
         self
     }
 
+    /// Sets the text [`LineHeight`] of the [`Toggler`].
+    pub fn text_line_height(
+        mut self,
+        line_height: impl Into<text::LineHeight>,
+    ) -> Self {
+        self.text_line_height = line_height.into();
+        self
+    }
+
     /// Sets the horizontal alignment of the text of the [`Toggler`]
     pub fn text_alignment(mut self, alignment: alignment::Horizontal) -> Self {
         self.text_alignment = alignment;
+        self
+    }
+
+    /// Sets the [`text::Shaping`] strategy of the [`Toggler`].
+    pub fn text_shaping(mut self, shaping: text::Shaping) -> Self {
+        self.text_shaping = shaping;
         self
     }
 
@@ -167,7 +186,9 @@ where
                     .size(
                         self.text_size
                             .unwrap_or_else(|| renderer.default_size()),
-                    ),
+                    )
+                    .line_height(self.text_line_height)
+                    .shaping(self.text_shaping),
             );
         }
 
@@ -181,14 +202,14 @@ where
         _state: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> event::Status {
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left)) => {
-                let mouse_over = layout.bounds().contains(cursor_position);
+                let mouse_over = cursor.is_over(layout.bounds());
 
                 if mouse_over {
                     shell.publish((self.on_toggle)(!self.is_toggled));
@@ -206,11 +227,11 @@ where
         &self,
         _state: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
-        if layout.bounds().contains(cursor_position) {
+        if cursor.is_over(layout.bounds()) {
             mouse::Interaction::Pointer
         } else {
             mouse::Interaction::default()
@@ -224,7 +245,7 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         /// Makes sure that the border radius of the toggler looks good at every size.
@@ -245,17 +266,19 @@ where
                 label_layout,
                 label,
                 self.text_size,
+                self.text_line_height,
                 self.font,
                 Default::default(),
                 self.text_alignment,
                 alignment::Vertical::Center,
+                self.text_shaping,
             );
         }
 
         let toggler_layout = children.next().unwrap();
         let bounds = toggler_layout.bounds();
 
-        let is_mouse_over = bounds.contains(cursor_position);
+        let is_mouse_over = cursor.is_over(layout.bounds());
 
         let style = if is_mouse_over {
             theme.hovered(&self.style, self.is_toggled)

@@ -8,8 +8,8 @@ use crate::core::text;
 use crate::core::touch;
 use crate::core::widget::Tree;
 use crate::core::{
-    Alignment, Clipboard, Color, Element, Layout, Length, Pixels, Point,
-    Rectangle, Shell, Widget,
+    Alignment, Clipboard, Color, Element, Layout, Length, Pixels, Rectangle,
+    Shell, Widget,
 };
 use crate::{Row, Text};
 
@@ -81,6 +81,8 @@ where
     size: f32,
     spacing: f32,
     text_size: Option<f32>,
+    text_line_height: text::LineHeight,
+    text_shaping: text::Shaping,
     font: Option<Renderer::Font>,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
@@ -123,6 +125,8 @@ where
             size: Self::DEFAULT_SIZE,
             spacing: Self::DEFAULT_SPACING, //15
             text_size: None,
+            text_line_height: text::LineHeight::default(),
+            text_shaping: text::Shaping::Basic,
             font: None,
             style: Default::default(),
         }
@@ -149,6 +153,21 @@ where
     /// Sets the text size of the [`Radio`] button.
     pub fn text_size(mut self, text_size: impl Into<Pixels>) -> Self {
         self.text_size = Some(text_size.into().0);
+        self
+    }
+
+    /// Sets the text [`LineHeight`] of the [`Radio`] button.
+    pub fn text_line_height(
+        mut self,
+        line_height: impl Into<text::LineHeight>,
+    ) -> Self {
+        self.text_line_height = line_height.into();
+        self
+    }
+
+    /// Sets the [`text::Shaping`] strategy of the [`Radio`] button.
+    pub fn text_shaping(mut self, shaping: text::Shaping) -> Self {
+        self.text_shaping = shaping;
         self
     }
 
@@ -192,9 +211,16 @@ where
             .spacing(self.spacing)
             .align_items(Alignment::Center)
             .push(Row::new().width(self.size).height(self.size))
-            .push(Text::new(&self.label).width(self.width).size(
-                self.text_size.unwrap_or_else(|| renderer.default_size()),
-            ))
+            .push(
+                Text::new(&self.label)
+                    .width(self.width)
+                    .size(
+                        self.text_size
+                            .unwrap_or_else(|| renderer.default_size()),
+                    )
+                    .line_height(self.text_line_height)
+                    .shaping(self.text_shaping),
+            )
             .layout(renderer, limits)
     }
 
@@ -203,7 +229,7 @@ where
         _state: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -211,7 +237,7 @@ where
         match event {
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
-                if layout.bounds().contains(cursor_position) {
+                if cursor.is_over(layout.bounds()) {
                     shell.publish(self.on_click.clone());
 
                     return event::Status::Captured;
@@ -227,11 +253,11 @@ where
         &self,
         _state: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
-        if layout.bounds().contains(cursor_position) {
+        if cursor.is_over(layout.bounds()) {
             mouse::Interaction::Pointer
         } else {
             mouse::Interaction::default()
@@ -245,11 +271,10 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
-        let bounds = layout.bounds();
-        let is_mouse_over = bounds.contains(cursor_position);
+        let is_mouse_over = cursor.is_over(layout.bounds());
 
         let mut children = layout.children();
 
@@ -303,12 +328,14 @@ where
                 label_layout,
                 &self.label,
                 self.text_size,
+                self.text_line_height,
                 self.font,
                 crate::text::Appearance {
                     color: custom_style.text_color,
                 },
                 alignment::Horizontal::Left,
                 alignment::Vertical::Center,
+                self.text_shaping,
             );
         }
     }

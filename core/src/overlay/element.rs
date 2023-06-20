@@ -68,35 +68,25 @@ where
         &mut self,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> event::Status {
-        self.overlay.on_event(
-            event,
-            layout,
-            cursor_position,
-            renderer,
-            clipboard,
-            shell,
-        )
+        self.overlay
+            .on_event(event, layout, cursor, renderer, clipboard, shell)
     }
 
     /// Returns the current [`mouse::Interaction`] of the [`Element`].
     pub fn mouse_interaction(
         &self,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        self.overlay.mouse_interaction(
-            layout,
-            cursor_position,
-            viewport,
-            renderer,
-        )
+        self.overlay
+            .mouse_interaction(layout, cursor, viewport, renderer)
     }
 
     /// Draws the [`Element`] and its children using the given [`Layout`].
@@ -106,10 +96,9 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
     ) {
-        self.overlay
-            .draw(renderer, theme, style, layout, cursor_position)
+        self.overlay.draw(renderer, theme, style, layout, cursor)
     }
 
     /// Applies a [`widget::Operation`] to the [`Element`].
@@ -123,8 +112,22 @@ where
     }
 
     /// Returns true if the cursor is over the [`Element`].
-    pub fn is_over(&self, layout: Layout<'_>, cursor_position: Point) -> bool {
-        self.overlay.is_over(layout, cursor_position)
+    pub fn is_over(
+        &self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        cursor_position: Point,
+    ) -> bool {
+        self.overlay.is_over(layout, renderer, cursor_position)
+    }
+
+    /// Returns the nested overlay of the [`Element`], if there is any.
+    pub fn overlay<'b>(
+        &'b mut self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+    ) -> Option<Element<'b, Message, Renderer>> {
+        self.overlay.overlay(layout, renderer)
     }
 }
 
@@ -215,7 +218,7 @@ where
         &mut self,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, B>,
@@ -226,7 +229,7 @@ where
         let event_status = self.content.on_event(
             event,
             layout,
-            cursor_position,
+            cursor,
             renderer,
             clipboard,
             &mut local_shell,
@@ -240,16 +243,12 @@ where
     fn mouse_interaction(
         &self,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
-        self.content.mouse_interaction(
-            layout,
-            cursor_position,
-            viewport,
-            renderer,
-        )
+        self.content
+            .mouse_interaction(layout, cursor, viewport, renderer)
     }
 
     fn draw(
@@ -258,13 +257,27 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
     ) {
-        self.content
-            .draw(renderer, theme, style, layout, cursor_position)
+        self.content.draw(renderer, theme, style, layout, cursor)
     }
 
-    fn is_over(&self, layout: Layout<'_>, cursor_position: Point) -> bool {
-        self.content.is_over(layout, cursor_position)
+    fn is_over(
+        &self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        cursor_position: Point,
+    ) -> bool {
+        self.content.is_over(layout, renderer, cursor_position)
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+    ) -> Option<Element<'b, B, Renderer>> {
+        self.content
+            .overlay(layout, renderer)
+            .map(|overlay| overlay.map(self.mapper))
     }
 }

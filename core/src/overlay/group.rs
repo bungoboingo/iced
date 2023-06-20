@@ -81,7 +81,7 @@ where
         &mut self,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -93,7 +93,7 @@ where
                 child.on_event(
                     event.clone(),
                     layout,
-                    cursor_position,
+                    cursor,
                     renderer,
                     clipboard,
                     shell,
@@ -108,17 +108,17 @@ where
         theme: &<Renderer as crate::Renderer>::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
     ) {
         for (child, layout) in self.children.iter().zip(layout.children()) {
-            child.draw(renderer, theme, style, layout, cursor_position);
+            child.draw(renderer, theme, style, layout, cursor);
         }
     }
 
     fn mouse_interaction(
         &self,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
@@ -126,12 +126,7 @@ where
             .iter()
             .zip(layout.children())
             .map(|(child, layout)| {
-                child.mouse_interaction(
-                    layout,
-                    cursor_position,
-                    viewport,
-                    renderer,
-                )
+                child.mouse_interaction(layout, cursor, viewport, renderer)
             })
             .max()
             .unwrap_or_default()
@@ -152,11 +147,33 @@ where
         });
     }
 
-    fn is_over(&self, layout: Layout<'_>, cursor_position: Point) -> bool {
+    fn is_over(
+        &self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        cursor_position: Point,
+    ) -> bool {
         self.children
             .iter()
             .zip(layout.children())
-            .any(|(child, layout)| child.is_over(layout, cursor_position))
+            .any(|(child, layout)| {
+                child.is_over(layout, renderer, cursor_position)
+            })
+    }
+
+    fn overlay<'b>(
+        &'b mut self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+    ) -> Option<overlay::Element<'b, Message, Renderer>> {
+        let children = self
+            .children
+            .iter_mut()
+            .zip(layout.children())
+            .filter_map(|(child, layout)| child.overlay(layout, renderer))
+            .collect::<Vec<_>>();
+
+        (!children.is_empty()).then(|| Group::with_children(children).overlay())
     }
 }
 

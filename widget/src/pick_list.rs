@@ -11,8 +11,8 @@ use crate::core::text::{self, Text};
 use crate::core::touch;
 use crate::core::widget::tree::{self, Tree};
 use crate::core::{
-    Clipboard, Element, Layout, Length, Padding, Pixels, Point, Rectangle,
-    Shell, Size, Widget,
+    Clipboard, Element, Layout, Length, Padding, Pixels, Rectangle, Shell,
+    Size, Widget,
 };
 use crate::overlay::menu::{self, Menu};
 use crate::scrollable;
@@ -36,6 +36,8 @@ where
     width: Length,
     padding: Padding,
     text_size: Option<f32>,
+    text_line_height: text::LineHeight,
+    text_shaping: text::Shaping,
     font: Option<Renderer::Font>,
     handle: Handle<Renderer::Font>,
     style: <Renderer::Theme as StyleSheet>::Style,
@@ -71,6 +73,8 @@ where
             width: Length::Shrink,
             padding: Self::DEFAULT_PADDING,
             text_size: None,
+            text_line_height: text::LineHeight::default(),
+            text_shaping: text::Shaping::Basic,
             font: None,
             handle: Default::default(),
             style: Default::default(),
@@ -98,6 +102,21 @@ where
     /// Sets the text size of the [`PickList`].
     pub fn text_size(mut self, size: impl Into<Pixels>) -> Self {
         self.text_size = Some(size.into().0);
+        self
+    }
+
+    /// Sets the text [`LineHeight`] of the [`PickList`].
+    pub fn text_line_height(
+        mut self,
+        line_height: impl Into<text::LineHeight>,
+    ) -> Self {
+        self.text_line_height = line_height.into();
+        self
+    }
+
+    /// Sets the [`text::Shaping`] strategy of the [`PickList`].
+    pub fn text_shaping(mut self, shaping: text::Shaping) -> Self {
+        self.text_shaping = shaping;
         self
     }
 
@@ -138,11 +157,11 @@ where
         From<<Renderer::Theme as StyleSheet>::Style>,
 {
     fn tag(&self) -> tree::Tag {
-        tree::Tag::of::<State<T>>()
+        tree::Tag::of::<State>()
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::<T>::new())
+        tree::State::new(State::new())
     }
 
     fn width(&self) -> Length {
@@ -164,6 +183,8 @@ where
             self.width,
             self.padding,
             self.text_size,
+            self.text_line_height,
+            self.text_shaping,
             self.font,
             self.placeholder.as_deref(),
             &self.options,
@@ -175,7 +196,7 @@ where
         tree: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -183,12 +204,12 @@ where
         update(
             event,
             layout,
-            cursor_position,
+            cursor,
             shell,
             self.on_selected.as_ref(),
             self.selected.as_ref(),
             &self.options,
-            || tree.state.downcast_mut::<State<T>>(),
+            || tree.state.downcast_mut::<State>(),
         )
     }
 
@@ -196,11 +217,11 @@ where
         &self,
         _tree: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
-        mouse_interaction(layout, cursor_position)
+        mouse_interaction(layout, cursor)
     }
 
     fn draw(
@@ -210,7 +231,7 @@ where
         theme: &Renderer::Theme,
         _style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         let font = self.font.unwrap_or_else(|| renderer.default_font());
@@ -218,15 +239,17 @@ where
             renderer,
             theme,
             layout,
-            cursor_position,
+            cursor,
             self.padding,
             self.text_size,
+            self.text_line_height,
+            self.text_shaping,
             font,
             self.placeholder.as_deref(),
             self.selected.as_ref(),
             &self.handle,
             &self.style,
-            || tree.state.downcast_ref::<State<T>>(),
+            || tree.state.downcast_ref::<State>(),
         )
     }
 
@@ -236,15 +259,17 @@ where
         layout: Layout<'_>,
         renderer: &Renderer,
     ) -> Option<overlay::Element<'b, Message, Renderer>> {
-        let state = tree.state.downcast_mut::<State<T>>();
+        let state = tree.state.downcast_mut::<State>();
 
         overlay(
             layout,
             state,
             self.padding,
             self.text_size,
+            self.text_shaping,
             self.font.unwrap_or_else(|| renderer.default_font()),
             &self.options,
+            &self.on_selected,
             self.style.clone(),
         )
     }
@@ -271,15 +296,14 @@ where
 
 /// The local state of a [`PickList`].
 #[derive(Debug)]
-pub struct State<T> {
+pub struct State {
     menu: menu::State,
     keyboard_modifiers: keyboard::Modifiers,
     is_open: bool,
     hovered_option: Option<usize>,
-    last_selection: Option<T>,
 }
 
-impl<T> State<T> {
+impl State {
     /// Creates a new [`State`] for a [`PickList`].
     pub fn new() -> Self {
         Self {
@@ -287,12 +311,11 @@ impl<T> State<T> {
             keyboard_modifiers: keyboard::Modifiers::default(),
             is_open: bool::default(),
             hovered_option: Option::default(),
-            last_selection: Option::default(),
         }
     }
 }
 
-impl<T> Default for State<T> {
+impl Default for State {
     fn default() -> Self {
         Self::new()
     }
@@ -336,6 +359,10 @@ pub struct Icon<Font> {
     pub code_point: char,
     /// Font size of the content.
     pub size: Option<f32>,
+    /// Line height of the content.
+    pub line_height: text::LineHeight,
+    /// The shaping strategy of the icon.
+    pub shaping: text::Shaping,
 }
 
 /// Computes the layout of a [`PickList`].
@@ -345,6 +372,8 @@ pub fn layout<Renderer, T>(
     width: Length,
     padding: Padding,
     text_size: Option<f32>,
+    text_line_height: text::LineHeight,
+    text_shaping: text::Shaping,
     font: Option<Renderer::Font>,
     placeholder: Option<&str>,
     options: &[T],
@@ -361,11 +390,11 @@ where
     let max_width = match width {
         Length::Shrink => {
             let measure = |label: &str| -> f32 {
-                let (width, _) = renderer.measure(
+                let width = renderer.measure_width(
                     label,
                     text_size,
                     font.unwrap_or_else(|| renderer.default_font()),
-                    Size::new(f32::INFINITY, f32::INFINITY),
+                    text_shaping,
                 );
 
                 width.round()
@@ -385,8 +414,10 @@ where
     };
 
     let size = {
-        let intrinsic =
-            Size::new(max_width + text_size + padding.left, text_size * 1.2);
+        let intrinsic = Size::new(
+            max_width + text_size + padding.left,
+            f32::from(text_line_height.to_absolute(Pixels(text_size))),
+        );
 
         limits.resolve(intrinsic).pad(padding)
     };
@@ -399,12 +430,12 @@ where
 pub fn update<'a, T, Message>(
     event: Event,
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     shell: &mut Shell<'_, Message>,
     on_selected: &dyn Fn(T) -> Message,
     selected: Option<&T>,
     options: &[T],
-    state: impl FnOnce() -> &'a mut State<T>,
+    state: impl FnOnce() -> &'a mut State,
 ) -> event::Status
 where
     T: PartialEq + Clone + 'a,
@@ -414,13 +445,13 @@ where
         | Event::Touch(touch::Event::FingerPressed { .. }) => {
             let state = state();
 
-            let event_status = if state.is_open {
+            if state.is_open {
                 // Event wasn't processed by overlay, so cursor was clicked either outside it's
                 // bounds or on the drop-down, either way we close the overlay.
                 state.is_open = false;
 
                 event::Status::Captured
-            } else if layout.bounds().contains(cursor_position) {
+            } else if cursor.is_over(layout.bounds()) {
                 state.is_open = true;
                 state.hovered_option =
                     options.iter().position(|option| Some(option) == selected);
@@ -428,16 +459,6 @@ where
                 event::Status::Captured
             } else {
                 event::Status::Ignored
-            };
-
-            if let Some(last_selection) = state.last_selection.take() {
-                shell.publish((on_selected)(last_selection));
-
-                state.is_open = false;
-
-                event::Status::Captured
-            } else {
-                event_status
             }
         }
         Event::Mouse(mouse::Event::WheelScrolled {
@@ -446,7 +467,7 @@ where
             let state = state();
 
             if state.keyboard_modifiers.command()
-                && layout.bounds().contains(cursor_position)
+                && cursor.is_over(layout.bounds())
                 && !state.is_open
             {
                 fn find_next<'a, T: PartialEq>(
@@ -497,10 +518,10 @@ where
 /// Returns the current [`mouse::Interaction`] of a [`PickList`].
 pub fn mouse_interaction(
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
 ) -> mouse::Interaction {
     let bounds = layout.bounds();
-    let is_mouse_over = bounds.contains(cursor_position);
+    let is_mouse_over = cursor.is_over(bounds);
 
     if is_mouse_over {
         mouse::Interaction::Pointer
@@ -512,11 +533,13 @@ pub fn mouse_interaction(
 /// Returns the current overlay of a [`PickList`].
 pub fn overlay<'a, T, Message, Renderer>(
     layout: Layout<'_>,
-    state: &'a mut State<T>,
+    state: &'a mut State,
     padding: Padding,
     text_size: Option<f32>,
+    text_shaping: text::Shaping,
     font: Renderer::Font,
     options: &'a [T],
+    on_selected: &'a dyn Fn(T) -> Message,
     style: <Renderer::Theme as StyleSheet>::Style,
 ) -> Option<overlay::Element<'a, Message, Renderer>>
 where
@@ -537,11 +560,16 @@ where
             &mut state.menu,
             options,
             &mut state.hovered_option,
-            &mut state.last_selection,
+            |option| {
+                state.is_open = false;
+
+                (on_selected)(option)
+            },
         )
         .width(bounds.width)
         .padding(padding)
         .font(font)
+        .text_shaping(text_shaping)
         .style(style);
 
         if let Some(text_size) = text_size {
@@ -559,22 +587,24 @@ pub fn draw<'a, T, Renderer>(
     renderer: &mut Renderer,
     theme: &Renderer::Theme,
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     padding: Padding,
     text_size: Option<f32>,
+    text_line_height: text::LineHeight,
+    text_shaping: text::Shaping,
     font: Renderer::Font,
     placeholder: Option<&str>,
     selected: Option<&T>,
     handle: &Handle<Renderer::Font>,
     style: &<Renderer::Theme as StyleSheet>::Style,
-    state: impl FnOnce() -> &'a State<T>,
+    state: impl FnOnce() -> &'a State,
 ) where
     Renderer: text::Renderer,
     Renderer::Theme: StyleSheet,
     T: ToString + 'a,
 {
     let bounds = layout.bounds();
-    let is_mouse_over = bounds.contains(cursor_position);
+    let is_mouse_over = cursor.is_over(bounds);
     let is_selected = selected.is_some();
 
     let style = if is_mouse_over {
@@ -588,46 +618,66 @@ pub fn draw<'a, T, Renderer>(
             bounds,
             border_color: style.border_color,
             border_width: style.border_width,
-            border_radius: style.border_radius.into(),
+            border_radius: style.border_radius,
         },
         style.background,
     );
 
     let handle = match handle {
-        Handle::Arrow { size } => {
-            Some((Renderer::ICON_FONT, Renderer::ARROW_DOWN_ICON, *size))
-        }
+        Handle::Arrow { size } => Some((
+            Renderer::ICON_FONT,
+            Renderer::ARROW_DOWN_ICON,
+            *size,
+            text::LineHeight::default(),
+            text::Shaping::Basic,
+        )),
         Handle::Static(Icon {
             font,
             code_point,
             size,
-        }) => Some((*font, *code_point, *size)),
+            line_height,
+            shaping,
+        }) => Some((*font, *code_point, *size, *line_height, *shaping)),
         Handle::Dynamic { open, closed } => {
             if state().is_open {
-                Some((open.font, open.code_point, open.size))
+                Some((
+                    open.font,
+                    open.code_point,
+                    open.size,
+                    open.line_height,
+                    open.shaping,
+                ))
             } else {
-                Some((closed.font, closed.code_point, closed.size))
+                Some((
+                    closed.font,
+                    closed.code_point,
+                    closed.size,
+                    closed.line_height,
+                    closed.shaping,
+                ))
             }
         }
         Handle::None => None,
     };
 
-    if let Some((font, code_point, size)) = handle {
+    if let Some((font, code_point, size, line_height, shaping)) = handle {
         let size = size.unwrap_or_else(|| renderer.default_size());
 
         renderer.fill_text(Text {
             content: &code_point.to_string(),
             size,
+            line_height,
             font,
             color: style.handle_color,
             bounds: Rectangle {
                 x: bounds.x + bounds.width - padding.horizontal(),
                 y: bounds.center_y(),
-                height: size * 1.2,
+                height: f32::from(line_height.to_absolute(Pixels(size))),
                 ..bounds
             },
             horizontal_alignment: alignment::Horizontal::Right,
             vertical_alignment: alignment::Vertical::Center,
+            shaping,
         });
     }
 
@@ -639,6 +689,7 @@ pub fn draw<'a, T, Renderer>(
         renderer.fill_text(Text {
             content: label,
             size: text_size,
+            line_height: text_line_height,
             font,
             color: if is_selected {
                 style.text_color
@@ -649,10 +700,13 @@ pub fn draw<'a, T, Renderer>(
                 x: bounds.x + padding.left,
                 y: bounds.center_y(),
                 width: bounds.width - padding.horizontal(),
-                height: text_size * 1.2,
+                height: f32::from(
+                    text_line_height.to_absolute(Pixels(text_size)),
+                ),
             },
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Center,
+            shaping: text_shaping,
         });
     }
 }

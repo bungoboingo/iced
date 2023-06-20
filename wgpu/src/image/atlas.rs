@@ -13,8 +13,7 @@ use allocator::Allocator;
 pub const SIZE: u32 = 2048;
 
 use crate::core::Size;
-
-use std::num::NonZeroU32;
+use crate::graphics::color;
 
 #[derive(Debug)]
 pub struct Atlas {
@@ -37,7 +36,11 @@ impl Atlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: if color::GAMMA_CORRECTION {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            } else {
+                wgpu::TextureFormat::Rgba8Unorm
+            },
             usage: wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::TEXTURE_BINDING,
@@ -67,7 +70,6 @@ impl Atlas {
     pub fn upload(
         &mut self,
         device: &wgpu::Device,
-        queue: &wgpu::Queue,
         encoder: &mut wgpu::CommandEncoder,
         width: u32,
         height: u32,
@@ -114,7 +116,8 @@ impl Atlas {
                     padding,
                     0,
                     allocation,
-                    queue,
+                    device,
+                    encoder,
                 );
             }
             Entry::Fragmented { fragments, .. } => {
@@ -129,7 +132,8 @@ impl Atlas {
                         padding,
                         offset,
                         &fragment.allocation,
-                        queue,
+                        device,
+                        encoder,
                     );
                 }
             }
@@ -282,8 +286,11 @@ impl Atlas {
         padding: u32,
         offset: usize,
         allocation: &Allocation,
-        queue: &wgpu::Queue,
+        device: &wgpu::Device,
+        encoder: &mut wgpu::CommandEncoder,
     ) {
+        use wgpu::util::DeviceExt;
+
         let (x, y) = allocation.position();
         let Size { width, height } = allocation.size();
         let layer = allocation.layer();
@@ -294,7 +301,22 @@ impl Atlas {
             depth_or_array_layers: 1,
         };
 
-        queue.write_texture(
+        let buffer =
+            device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+                label: Some("image upload buffer"),
+                contents: data,
+                usage: wgpu::BufferUsages::COPY_SRC,
+            });
+
+        encoder.copy_buffer_to_texture(
+            wgpu::ImageCopyBuffer {
+                buffer: &buffer,
+                layout: wgpu::ImageDataLayout {
+                    offset: offset as u64,
+                    bytes_per_row: Some(4 * image_width + padding),
+                    rows_per_image: Some(image_height),
+                },
+            },
             wgpu::ImageCopyTexture {
                 texture: &self.texture,
                 mip_level: 0,
@@ -304,12 +326,6 @@ impl Atlas {
                     z: layer as u32,
                 },
                 aspect: wgpu::TextureAspect::default(),
-            },
-            data,
-            wgpu::ImageDataLayout {
-                offset: offset as u64,
-                bytes_per_row: NonZeroU32::new(4 * image_width + padding),
-                rows_per_image: NonZeroU32::new(image_height),
             },
             extent,
         );
@@ -335,7 +351,11 @@ impl Atlas {
             mip_level_count: 1,
             sample_count: 1,
             dimension: wgpu::TextureDimension::D2,
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            format: if color::GAMMA_CORRECTION {
+                wgpu::TextureFormat::Rgba8UnormSrgb
+            } else {
+                wgpu::TextureFormat::Rgba8Unorm
+            },
             usage: wgpu::TextureUsages::COPY_DST
                 | wgpu::TextureUsages::COPY_SRC
                 | wgpu::TextureUsages::TEXTURE_BINDING,

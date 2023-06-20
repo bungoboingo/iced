@@ -1,14 +1,15 @@
 //! Write some text for your users to read.
 use crate::alignment;
 use crate::layout;
+use crate::mouse;
 use crate::renderer;
 use crate::text;
 use crate::widget::Tree;
-use crate::{
-    Color, Element, Layout, Length, Pixels, Point, Rectangle, Size, Widget,
-};
+use crate::{Color, Element, Layout, Length, Pixels, Rectangle, Size, Widget};
 
 use std::borrow::Cow;
+
+pub use text::{LineHeight, Shaping};
 
 /// A paragraph of text.
 #[allow(missing_debug_implementations)]
@@ -19,11 +20,13 @@ where
 {
     content: Cow<'a, str>,
     size: Option<f32>,
+    line_height: LineHeight,
     width: Length,
     height: Length,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
     font: Option<Renderer::Font>,
+    shaping: Shaping,
     style: <Renderer::Theme as StyleSheet>::Style,
 }
 
@@ -37,11 +40,13 @@ where
         Text {
             content: content.into(),
             size: None,
+            line_height: LineHeight::default(),
             font: None,
             width: Length::Shrink,
             height: Length::Shrink,
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Top,
+            shaping: Shaping::Basic,
             style: Default::default(),
         }
     }
@@ -49,6 +54,12 @@ where
     /// Sets the size of the [`Text`].
     pub fn size(mut self, size: impl Into<Pixels>) -> Self {
         self.size = Some(size.into().0);
+        self
+    }
+
+    /// Sets the [`LineHeight`] of the [`Text`].
+    pub fn line_height(mut self, line_height: impl Into<LineHeight>) -> Self {
+        self.line_height = line_height.into();
         self
     }
 
@@ -98,6 +109,12 @@ where
         self.vertical_alignment = alignment;
         self
     }
+
+    /// Sets the [`Shaping`] strategy of the [`Text`].
+    pub fn shaping(mut self, shaping: Shaping) -> Self {
+        self.shaping = shaping;
+        self
+    }
 }
 
 impl<'a, Message, Renderer> Widget<Message, Renderer> for Text<'a, Renderer>
@@ -127,8 +144,10 @@ where
         let (width, height) = renderer.measure(
             &self.content,
             size,
+            self.line_height,
             self.font.unwrap_or_else(|| renderer.default_font()),
             bounds,
+            self.shaping,
         );
 
         let size = limits.resolve(Size::new(width, height));
@@ -143,7 +162,7 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        _cursor_position: Point,
+        _cursor_position: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         draw(
@@ -152,10 +171,12 @@ where
             layout,
             &self.content,
             self.size,
+            self.line_height,
             self.font,
             theme.appearance(self.style.clone()),
             self.horizontal_alignment,
             self.vertical_alignment,
+            self.shaping,
         );
     }
 }
@@ -176,10 +197,12 @@ pub fn draw<Renderer>(
     layout: Layout<'_>,
     content: &str,
     size: Option<f32>,
+    line_height: LineHeight,
     font: Option<Renderer::Font>,
     appearance: Appearance,
     horizontal_alignment: alignment::Horizontal,
     vertical_alignment: alignment::Vertical,
+    shaping: Shaping,
 ) where
     Renderer: text::Renderer,
 {
@@ -197,14 +220,18 @@ pub fn draw<Renderer>(
         alignment::Vertical::Bottom => bounds.y + bounds.height,
     };
 
+    let size = size.unwrap_or_else(|| renderer.default_size());
+
     renderer.fill_text(crate::Text {
         content,
-        size: size.unwrap_or_else(|| renderer.default_size()),
+        size,
+        line_height,
         bounds: Rectangle { x, y, ..bounds },
         color: appearance.color.unwrap_or(style.text_color),
         font: font.unwrap_or_else(|| renderer.default_font()),
         horizontal_alignment,
         vertical_alignment,
+        shaping,
     });
 }
 
@@ -228,12 +255,14 @@ where
         Self {
             content: self.content.clone(),
             size: self.size,
+            line_height: self.line_height,
             width: self.width,
             height: self.height,
             horizontal_alignment: self.horizontal_alignment,
             vertical_alignment: self.vertical_alignment,
             font: self.font,
             style: self.style.clone(),
+            shaping: self.shaping,
         }
     }
 }

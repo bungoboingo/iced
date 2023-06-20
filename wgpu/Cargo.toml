@@ -11,9 +11,10 @@ repository = "https://github.com/iced-rs/iced"
 geometry = ["iced_graphics/geometry", "lyon"]
 image = ["iced_graphics/image"]
 svg = ["resvg"]
+web-colors = ["iced_graphics/web-colors"]
 
 [dependencies]
-wgpu = "0.15"
+wgpu = "0.16"
 raw-window-handle = "0.5"
 log = "0.4"
 guillotiere = "0.6"
@@ -23,7 +24,7 @@ once_cell = "1.0"
 rustc-hash = "1.1"
 
 [target.'cfg(target_arch = "wasm32")'.dependencies]
-wgpu = { version = "0.15", features = ["webgl"] }
+wgpu = { version = "0.16", features = ["webgl"] }
 
 [dependencies.twox-hash]
 version = "1.6"
@@ -45,14 +46,10 @@ features = ["wgpu"]
 [dependencies.glyphon]
 version = "0.2"
 git = "https://github.com/hecrj/glyphon.git"
-rev = "1d26d92b19407c5dabe4625944d4a6babbbf0715"
-
-[dependencies.encase]
-version = "0.3.0"
-features = ["glam"]
+rev = "8dbf36020e5759fa9144517b321372266160113e"
 
 [dependencies.glam]
-version = "0.21.3"
+version = "0.24"
 
 [dependencies.lyon]
 version = "1.0"

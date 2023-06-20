@@ -68,6 +68,7 @@ where
     width: Length,
     padding: Padding,
     size: Option<f32>,
+    line_height: text::LineHeight,
     on_input: Option<Box<dyn Fn(String) -> Message + 'a>>,
     on_paste: Option<Box<dyn Fn(String) -> Message + 'a>>,
     on_submit: Option<Message>,
@@ -96,6 +97,7 @@ where
             width: Length::Fill,
             padding: Padding::new(5.0),
             size: None,
+            line_height: text::LineHeight::default(),
             on_input: None,
             on_paste: None,
             on_submit: None,
@@ -177,6 +179,15 @@ where
         self
     }
 
+    /// Sets the [`LineHeight`] of the [`TextInput`].
+    pub fn line_height(
+        mut self,
+        line_height: impl Into<text::LineHeight>,
+    ) -> Self {
+        self.line_height = line_height.into();
+        self
+    }
+
     /// Sets the style of the [`TextInput`].
     pub fn style(
         mut self,
@@ -196,18 +207,19 @@ where
         renderer: &mut Renderer,
         theme: &Renderer::Theme,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         value: Option<&Value>,
     ) {
         draw(
             renderer,
             theme,
             layout,
-            cursor_position,
+            cursor,
             tree.state.downcast_ref::<State>(),
             value.unwrap_or(&self.value),
             &self.placeholder,
             self.size,
+            self.line_height,
             self.font,
             self.on_input.is_none(),
             self.is_secure,
@@ -263,6 +275,7 @@ where
             self.width,
             self.padding,
             self.size,
+            self.line_height,
             self.icon.as_ref(),
         )
     }
@@ -285,7 +298,7 @@ where
         tree: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -293,12 +306,13 @@ where
         update(
             event,
             layout,
-            cursor_position,
+            cursor,
             renderer,
             clipboard,
             shell,
             &mut self.value,
             self.size,
+            self.line_height,
             self.font,
             self.is_secure,
             self.on_input.as_deref(),
@@ -315,18 +329,19 @@ where
         theme: &Renderer::Theme,
         _style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         draw(
             renderer,
             theme,
             layout,
-            cursor_position,
+            cursor,
             tree.state.downcast_ref::<State>(),
             &self.value,
             &self.placeholder,
             self.size,
+            self.line_height,
             self.font,
             self.on_input.is_none(),
             self.is_secure,
@@ -339,11 +354,11 @@ where
         &self,
         _state: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
-        mouse_interaction(layout, cursor_position, self.on_input.is_none())
+        mouse_interaction(layout, cursor, self.on_input.is_none())
     }
 }
 
@@ -447,6 +462,7 @@ pub fn layout<Renderer>(
     width: Length,
     padding: Padding,
     size: Option<f32>,
+    line_height: text::LineHeight,
     icon: Option<&Icon<Renderer::Font>>,
 ) -> layout::Node
 where
@@ -454,7 +470,10 @@ where
 {
     let text_size = size.unwrap_or_else(|| renderer.default_size());
     let padding = padding.fit(Size::ZERO, limits.max());
-    let limits = limits.width(width).pad(padding).height(text_size * 1.2);
+    let limits = limits
+        .width(width)
+        .pad(padding)
+        .height(line_height.to_absolute(Pixels(text_size)));
 
     let text_bounds = limits.resolve(Size::ZERO);
 
@@ -463,6 +482,7 @@ where
             &icon.code_point.to_string(),
             icon.size.unwrap_or_else(|| renderer.default_size()),
             icon.font,
+            text::Shaping::Advanced,
         );
 
         let mut text_node = layout::Node::new(
@@ -508,12 +528,13 @@ where
 pub fn update<'a, Message, Renderer>(
     event: Event,
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     renderer: &Renderer,
     clipboard: &mut dyn Clipboard,
     shell: &mut Shell<'_, Message>,
     value: &mut Value,
     size: Option<f32>,
+    line_height: text::LineHeight,
     font: Option<Renderer::Font>,
     is_secure: bool,
     on_input: Option<&dyn Fn(String) -> Message>,
@@ -529,10 +550,14 @@ where
         Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
         | Event::Touch(touch::Event::FingerPressed { .. }) => {
             let state = state();
-            let is_clicked =
-                layout.bounds().contains(cursor_position) && on_input.is_some();
 
-            state.is_focused = if is_clicked {
+            let click_position = if on_input.is_some() {
+                cursor.position_over(layout.bounds())
+            } else {
+                None
+            };
+
+            state.is_focused = if click_position.is_some() {
                 state.is_focused.or_else(|| {
                     let now = Instant::now();
 
@@ -545,7 +570,7 @@ where
                 None
             };
 
-            if is_clicked {
+            if let Some(cursor_position) = click_position {
                 let text_layout = layout.children().next().unwrap();
                 let target = cursor_position.x - text_layout.bounds().x;
 
@@ -566,6 +591,7 @@ where
                                 text_layout.bounds(),
                                 font,
                                 size,
+                                line_height,
                                 &value,
                                 state,
                                 target,
@@ -594,6 +620,7 @@ where
                                 text_layout.bounds(),
                                 font,
                                 size,
+                                line_height,
                                 value,
                                 state,
                                 target,
@@ -643,6 +670,7 @@ where
                     text_layout.bounds(),
                     font,
                     size,
+                    line_height,
                     &value,
                     state,
                     target,
@@ -920,11 +948,12 @@ pub fn draw<Renderer>(
     renderer: &mut Renderer,
     theme: &Renderer::Theme,
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     state: &State,
     value: &Value,
     placeholder: &str,
     size: Option<f32>,
+    line_height: text::LineHeight,
     font: Option<Renderer::Font>,
     is_disabled: bool,
     is_secure: bool,
@@ -942,7 +971,7 @@ pub fn draw<Renderer>(
     let mut children_layout = layout.children();
     let text_bounds = children_layout.next().unwrap().bounds();
 
-    let is_mouse_over = bounds.contains(cursor_position);
+    let is_mouse_over = cursor.is_over(bounds);
 
     let appearance = if is_disabled {
         theme.disabled(style)
@@ -957,7 +986,7 @@ pub fn draw<Renderer>(
     renderer.fill_quad(
         renderer::Quad {
             bounds,
-            border_radius: appearance.border_radius.into(),
+            border_radius: appearance.border_radius,
             border_width: appearance.border_width,
             border_color: appearance.border_color,
         },
@@ -970,11 +999,16 @@ pub fn draw<Renderer>(
         renderer.fill_text(Text {
             content: &icon.code_point.to_string(),
             size: icon.size.unwrap_or_else(|| renderer.default_size()),
+            line_height: text::LineHeight::default(),
             font: icon.font,
             color: appearance.icon_color,
-            bounds: icon_layout.bounds(),
+            bounds: Rectangle {
+                y: text_bounds.center_y(),
+                ..icon_layout.bounds()
+            },
             horizontal_alignment: alignment::Horizontal::Left,
-            vertical_alignment: alignment::Vertical::Top,
+            vertical_alignment: alignment::Vertical::Center,
+            shaping: text::Shaping::Advanced,
         });
     }
 
@@ -1079,6 +1113,7 @@ pub fn draw<Renderer>(
         if text.is_empty() { placeholder } else { &text },
         size,
         font,
+        text::Shaping::Advanced,
     );
 
     let render = |renderer: &mut Renderer| {
@@ -1104,8 +1139,10 @@ pub fn draw<Renderer>(
                 ..text_bounds
             },
             size,
+            line_height,
             horizontal_alignment: alignment::Horizontal::Left,
             vertical_alignment: alignment::Vertical::Center,
+            shaping: text::Shaping::Advanced,
         });
     };
 
@@ -1121,10 +1158,10 @@ pub fn draw<Renderer>(
 /// Computes the current [`mouse::Interaction`] of the [`TextInput`].
 pub fn mouse_interaction(
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     is_disabled: bool,
 ) -> mouse::Interaction {
-    if layout.bounds().contains(cursor_position) {
+    if cursor.is_over(layout.bounds()) {
         if is_disabled {
             mouse::Interaction::NotAllowed
         } else {
@@ -1310,8 +1347,12 @@ where
 {
     let text_before_cursor = value.until(cursor_index).to_string();
 
-    let text_value_width =
-        renderer.measure_width(&text_before_cursor, size, font);
+    let text_value_width = renderer.measure_width(
+        &text_before_cursor,
+        size,
+        font,
+        text::Shaping::Advanced,
+    );
 
     let offset = ((text_value_width + 5.0) - text_bounds.width).max(0.0);
 
@@ -1325,6 +1366,7 @@ fn find_cursor_position<Renderer>(
     text_bounds: Rectangle,
     font: Option<Renderer::Font>,
     size: Option<f32>,
+    line_height: text::LineHeight,
     value: &Value,
     state: &State,
     x: f32,
@@ -1342,8 +1384,10 @@ where
         .hit_test(
             &value,
             size,
+            line_height,
             font,
             Size::INFINITY,
+            text::Shaping::Advanced,
             Point::new(x + offset, text_bounds.height / 2.0),
             true,
         )

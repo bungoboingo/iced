@@ -1,4 +1,5 @@
 use crate::core::text;
+use crate::core::Gradient;
 use crate::core::{Background, Color, Font, Point, Rectangle, Size, Vector};
 use crate::graphics::backend;
 use crate::graphics::{Primitive, Viewport};
@@ -91,6 +92,7 @@ impl Backend {
                         background_color,
                     )),
                     anti_alias: false,
+                    blend_mode: tiny_skia::BlendMode::Source,
                     ..Default::default()
                 },
                 tiny_skia::FillRule::default(),
@@ -183,6 +185,48 @@ impl Backend {
                                     *color,
                                 ))
                             }
+                            Background::Gradient(Gradient::Linear(linear)) => {
+                                let (start, end) =
+                                    linear.angle.to_distance(bounds);
+
+                                let stops: Vec<tiny_skia::GradientStop> =
+                                    linear
+                                        .stops
+                                        .into_iter()
+                                        .flatten()
+                                        .map(|stop| {
+                                            tiny_skia::GradientStop::new(
+                                                stop.offset,
+                                                tiny_skia::Color::from_rgba(
+                                                    stop.color.b,
+                                                    stop.color.g,
+                                                    stop.color.r,
+                                                    stop.color.a,
+                                                )
+                                                .expect("Create color"),
+                                            )
+                                        })
+                                        .collect();
+
+                                tiny_skia::LinearGradient::new(
+                                    tiny_skia::Point {
+                                        x: start.x,
+                                        y: start.y,
+                                    },
+                                    tiny_skia::Point { x: end.x, y: end.y },
+                                    if stops.is_empty() {
+                                        vec![tiny_skia::GradientStop::new(
+                                            0.0,
+                                            tiny_skia::Color::BLACK,
+                                        )]
+                                    } else {
+                                        stops
+                                    },
+                                    tiny_skia::SpreadMode::Pad,
+                                    tiny_skia::Transform::identity(),
+                                )
+                                .expect("Create linear gradient")
+                            }
                         },
                         anti_alias: true,
                         ..tiny_skia::Paint::default()
@@ -216,9 +260,11 @@ impl Backend {
                 bounds,
                 color,
                 size,
+                line_height,
                 font,
                 horizontal_alignment,
                 vertical_alignment,
+                shaping,
             } => {
                 let physical_bounds =
                     (primitive.bounds() + translation) * scale_factor;
@@ -232,12 +278,15 @@ impl Backend {
 
                 self.text_pipeline.draw(
                     content,
-                    (*bounds + translation) * scale_factor,
+                    *bounds + translation,
                     *color,
-                    *size * scale_factor,
+                    *size,
+                    *line_height,
                     *font,
                     *horizontal_alignment,
                     *vertical_alignment,
+                    *shaping,
+                    scale_factor,
                     pixels,
                     clip_mask,
                 );
@@ -425,10 +474,18 @@ impl Backend {
             }
             Primitive::SolidMesh { .. } | Primitive::GradientMesh { .. } => {
                 // Not supported!
-                // TODO: Draw a placeholder (?) / Log it (?)
+                // TODO: Draw a placeholder (?)
+                log::warn!(
+                    "Unsupported primitive in `iced_tiny_skia`: {:?}",
+                    primitive
+                );
             }
             _ => {
                 // Not supported!
+                log::warn!(
+                    "Unsupported primitive in `iced_tiny_skia`: {:?}",
+                    primitive
+                );
             }
         }
     }
@@ -514,7 +571,7 @@ fn rounded_rectangle(
         bounds.y + bounds.height,
     );
 
-    if bottom_right > 0.0 {
+    if bottom_left > 0.0 {
         arc_to(
             &mut builder,
             bounds.x + bottom_left,
@@ -624,26 +681,39 @@ impl backend::Text for Backend {
         &self,
         contents: &str,
         size: f32,
+        line_height: text::LineHeight,
         font: Font,
         bounds: Size,
+        shaping: text::Shaping,
     ) -> (f32, f32) {
-        self.text_pipeline.measure(contents, size, font, bounds)
+        self.text_pipeline.measure(
+            contents,
+            size,
+            line_height,
+            font,
+            bounds,
+            shaping,
+        )
     }
 
     fn hit_test(
         &self,
         contents: &str,
         size: f32,
+        line_height: text::LineHeight,
         font: Font,
         bounds: Size,
+        shaping: text::Shaping,
         point: Point,
         nearest_only: bool,
     ) -> Option<text::Hit> {
         self.text_pipeline.hit_test(
             contents,
             size,
+            line_height,
             font,
             bounds,
+            shaping,
             point,
             nearest_only,
         )

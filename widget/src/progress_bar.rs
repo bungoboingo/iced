@@ -1,10 +1,9 @@
 //! Provide progress feedback to your users.
 use crate::core::layout;
+use crate::core::mouse;
 use crate::core::renderer;
 use crate::core::widget::Tree;
-use crate::core::{
-    Color, Element, Layout, Length, Point, Rectangle, Size, Widget,
-};
+use crate::core::{Color, Element, Layout, Length, Rectangle, Size, Widget};
 
 use std::ops::RangeInclusive;
 
@@ -115,7 +114,7 @@ where
         theme: &Renderer::Theme,
         _style: &renderer::Style,
         layout: Layout<'_>,
-        _cursor_position: Point,
+        _cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         let bounds = layout.bounds();
@@ -133,7 +132,7 @@ where
         renderer.fill_quad(
             renderer::Quad {
                 bounds: Rectangle { ..bounds },
-                border_radius: style.border_radius.into(),
+                border_radius: style.border_radius,
                 border_width: 0.0,
                 border_color: Color::TRANSPARENT,
             },
@@ -147,7 +146,7 @@ where
                         width: active_progress_width,
                         ..bounds
                     },
-                    border_radius: style.border_radius.into(),
+                    border_radius: style.border_radius,
                     border_width: 0.0,
                     border_color: Color::TRANSPARENT,
                 },

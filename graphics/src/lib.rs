@@ -9,7 +9,7 @@
 )]
 #![deny(
     missing_debug_implementations,
-    //missing_docs,
+    missing_docs,
     unsafe_code,
     unused_results,
     clippy::extra_unused_lifetimes,
@@ -20,16 +20,18 @@
 )]
 #![forbid(rust_2018_idioms)]
 #![allow(clippy::inherent_to_string, clippy::type_complexity)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 mod antialiasing;
 mod error;
 mod transformation;
 mod viewport;
 
 pub mod backend;
+pub mod color;
 pub mod compositor;
 pub mod custom;
 pub mod damage;
+pub mod gradient;
 pub mod primitive;
 pub mod renderer;
 
@@ -44,6 +46,7 @@ pub use backend::Backend;
 pub use compositor::Compositor;
 pub use custom::Shader;
 pub use error::Error;
+pub use gradient::Gradient;
 pub use primitive::Primitive;
 pub use renderer::Renderer;
 pub use transformation::Transformation;

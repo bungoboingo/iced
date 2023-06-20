@@ -1,6 +1,7 @@
 use crate::core;
 use crate::core::{Color, Font, Point, Size};
 use crate::graphics::backend;
+use crate::graphics::color;
 use crate::graphics::{Primitive, Transformation, Viewport};
 use crate::quad;
 use crate::text;
@@ -264,7 +265,7 @@ impl Backend {
                         load: match clear_color {
                             Some(background_color) => wgpu::LoadOp::Clear({
                                 let [r, g, b, a] =
-                                    background_color.into_linear();
+                                    color::pack(background_color).components();
 
                                 wgpu::Color {
                                     r: f64::from(r),
@@ -290,8 +291,12 @@ impl Backend {
             }
 
             if !layer.quads.is_empty() {
-                self.quad_pipeline
-                    .render(quad_layer, bounds, &mut render_pass);
+                self.quad_pipeline.render(
+                    quad_layer,
+                    bounds,
+                    &layer.quads,
+                    &mut render_pass,
+                );
 
                 quad_layer += 1;
             }
@@ -411,26 +416,39 @@ impl backend::Text for Backend {
         &self,
         contents: &str,
         size: f32,
+        line_height: core::text::LineHeight,
         font: Font,
         bounds: Size,
+        shaping: core::text::Shaping,
     ) -> (f32, f32) {
-        self.text_pipeline.measure(contents, size, font, bounds)
+        self.text_pipeline.measure(
+            contents,
+            size,
+            line_height,
+            font,
+            bounds,
+            shaping,
+        )
     }
 
     fn hit_test(
         &self,
         contents: &str,
         size: f32,
+        line_height: core::text::LineHeight,
         font: Font,
         bounds: Size,
+        shaping: core::text::Shaping,
         point: Point,
         nearest_only: bool,
     ) -> Option<core::text::Hit> {
         self.text_pipeline.hit_test(
             contents,
             size,
+            line_height,
             font,
             bounds,
+            shaping,
             point,
             nearest_only,
         )

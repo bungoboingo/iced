@@ -25,7 +25,7 @@
 )]
 #![deny(
     missing_debug_implementations,
-    //missing_docs,
+    missing_docs,
     unsafe_code,
     unused_results,
     clippy::extra_unused_lifetimes,
@@ -36,7 +36,7 @@
 )]
 #![forbid(rust_2018_idioms)]
 #![allow(clippy::inherent_to_string, clippy::type_complexity)]
-#![cfg_attr(docsrs, feature(doc_cfg))]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 pub mod layer;
 pub mod settings;
 pub mod window;
@@ -50,6 +50,8 @@ mod quad;
 mod text;
 mod triangle;
 
+use buffer::Buffer;
+
 pub use iced_graphics as graphics;
 pub use iced_graphics::core;
 
@@ -58,8 +60,6 @@ pub use wgpu;
 pub use backend::Backend;
 pub use layer::Layer;
 pub use settings::Settings;
-
-use buffer::Buffer;
 
 #[cfg(any(feature = "image", feature = "svg"))]
 mod image;

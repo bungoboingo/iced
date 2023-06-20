@@ -180,7 +180,7 @@ where
         tree: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _renderer: &Renderer,
         _clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -188,7 +188,7 @@ where
         update(
             event,
             layout,
-            cursor_position,
+            cursor,
             shell,
             tree.state.downcast_mut::<State>(),
             &mut self.value,
@@ -206,13 +206,13 @@ where
         theme: &Renderer::Theme,
         _style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
     ) {
         draw(
             renderer,
             layout,
-            cursor_position,
+            cursor,
             tree.state.downcast_ref::<State>(),
             self.value,
             &self.range,
@@ -225,15 +225,11 @@ where
         &self,
         tree: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         _viewport: &Rectangle,
         _renderer: &Renderer,
     ) -> mouse::Interaction {
-        mouse_interaction(
-            layout,
-            cursor_position,
-            tree.state.downcast_ref::<State>(),
-        )
+        mouse_interaction(layout, cursor, tree.state.downcast_ref::<State>())
     }
 }
 
@@ -257,7 +253,7 @@ where
 pub fn update<Message, T>(
     event: Event,
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     shell: &mut Shell<'_, Message>,
     state: &mut State,
     value: &mut T,
@@ -272,8 +268,9 @@ where
 {
     let is_dragging = state.is_dragging;
 
-    let mut change = || {
+    let mut change = |cursor_position: Point| {
         let bounds = layout.bounds();
+
         let new_value = if cursor_position.y >= bounds.y + bounds.height {
             *range.start()
         } else if cursor_position.y <= bounds.y {
@@ -307,8 +304,9 @@ where
     match event {
         Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
         | Event::Touch(touch::Event::FingerPressed { .. }) => {
-            if layout.bounds().contains(cursor_position) {
-                change();
+            if let Some(cursor_position) = cursor.position_over(layout.bounds())
+            {
+                change(cursor_position);
                 state.is_dragging = true;
 
                 return event::Status::Captured;
@@ -329,7 +327,7 @@ where
         Event::Mouse(mouse::Event::CursorMoved { .. })
         | Event::Touch(touch::Event::FingerMoved { .. }) => {
             if is_dragging {
-                change();
+                let _ = cursor.position().map(change);
 
                 return event::Status::Captured;
             }
@@ -344,7 +342,7 @@ where
 pub fn draw<T, R>(
     renderer: &mut R,
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     state: &State,
     value: T,
     range: &RangeInclusive<T>,
@@ -356,7 +354,7 @@ pub fn draw<T, R>(
     R::Theme: StyleSheet,
 {
     let bounds = layout.bounds();
-    let is_mouse_over = bounds.contains(cursor_position);
+    let is_mouse_over = cursor.is_over(bounds);
 
     let style = if state.is_dragging {
         style_sheet.dragging(style)
@@ -366,16 +364,16 @@ pub fn draw<T, R>(
         style_sheet.active(style)
     };
 
-    let (handle_width, handle_height, handle_border_radius) = match style
-        .handle
-        .shape
-    {
-        HandleShape::Circle { radius } => (radius * 2.0, radius * 2.0, radius),
-        HandleShape::Rectangle {
-            width,
-            border_radius,
-        } => (f32::from(width), bounds.width, border_radius),
-    };
+    let (handle_width, handle_height, handle_border_radius) =
+        match style.handle.shape {
+            HandleShape::Circle { radius } => {
+                (radius * 2.0, radius * 2.0, radius.into())
+            }
+            HandleShape::Rectangle {
+                width,
+                border_radius,
+            } => (f32::from(width), bounds.width, border_radius),
+        };
 
     let value = value.into() as f32;
     let (range_start, range_end) = {
@@ -387,7 +385,7 @@ pub fn draw<T, R>(
     let offset = if range_start >= range_end {
         0.0
     } else {
-        (bounds.height - handle_width / 2.0) * (value - range_end)
+        (bounds.height - handle_width) * (value - range_end)
             / (range_start - range_end)
     };
 
@@ -401,7 +399,7 @@ pub fn draw<T, R>(
                 width: style.rail.width,
                 height: offset + handle_width / 2.0,
             },
-            border_radius: Default::default(),
+            border_radius: style.rail.border_radius,
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
         },
@@ -414,9 +412,9 @@ pub fn draw<T, R>(
                 x: rail_x - style.rail.width / 2.0,
                 y: bounds.y + offset + handle_width / 2.0,
                 width: style.rail.width,
-                height: bounds.height - offset,
+                height: bounds.height - offset - handle_width / 2.0,
             },
-            border_radius: Default::default(),
+            border_radius: style.rail.border_radius,
             border_width: 0.0,
             border_color: Color::TRANSPARENT,
         },
@@ -431,7 +429,7 @@ pub fn draw<T, R>(
                 width: handle_height,
                 height: handle_width,
             },
-            border_radius: handle_border_radius.into(),
+            border_radius: handle_border_radius,
             border_width: style.handle.border_width,
             border_color: style.handle.border_color,
         },
@@ -442,11 +440,11 @@ pub fn draw<T, R>(
 /// Computes the current [`mouse::Interaction`] of a [`VerticalSlider`].
 pub fn mouse_interaction(
     layout: Layout<'_>,
-    cursor_position: Point,
+    cursor: mouse::Cursor,
     state: &State,
 ) -> mouse::Interaction {
     let bounds = layout.bounds();
-    let is_mouse_over = bounds.contains(cursor_position);
+    let is_mouse_over = cursor.is_over(bounds);
 
     if state.is_dragging {
         mouse::Interaction::Grabbing

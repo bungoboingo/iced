@@ -1,6 +1,5 @@
 //! Organize rendering primitives into a flattened list of layers.
 mod image;
-mod quad;
 mod text;
 
 pub mod mesh;
@@ -9,13 +8,15 @@ use std::ops::Deref;
 use iced_graphics::custom;
 pub use image::Image;
 pub use mesh::Mesh;
-pub use quad::Quad;
 pub use text::Text;
 use crate::backend::Pipelines;
 
+use crate::core;
 use crate::core::alignment;
-use crate::core::{Background, Color, Font, Point, Rectangle, Size, Vector};
+use crate::core::{Color, Font, Point, Rectangle, Size, Vector};
+use crate::graphics::color;
 use crate::graphics::{Primitive, Viewport};
+use crate::quad::{self, Quad};
 
 /// A group of primitives that should be clipped together.
 #[derive(Debug)]
@@ -24,7 +25,7 @@ pub struct Layer<'a> {
     pub bounds: Rectangle,
 
     /// The quads of the [`Layer`].
-    pub quads: Vec<Quad>,
+    pub quads: quad::Batch,
 
     /// The triangle meshes of the [`Layer`].
     pub meshes: Vec<Mesh<'a>>,
@@ -44,7 +45,7 @@ impl<'a> Layer<'a> {
     pub fn new(bounds: Rectangle) -> Self {
         Self {
             bounds,
-            quads: Vec::new(),
+            quads: quad::Batch::default(),
             meshes: Vec::new(),
             text: Vec::new(),
             images: Vec::new(),
@@ -68,9 +69,11 @@ impl<'a> Layer<'a> {
                 ),
                 color: Color::new(0.9, 0.9, 0.9, 1.0),
                 size: 20.0,
+                line_height: core::text::LineHeight::default(),
                 font: Font::MONOSPACE,
                 horizontal_alignment: alignment::Horizontal::Left,
                 vertical_alignment: alignment::Vertical::Top,
+                shaping: core::text::Shaping::Basic,
             };
 
             overlay.text.push(text);
@@ -119,10 +122,12 @@ impl<'a> Layer<'a> {
                 content,
                 bounds,
                 size,
+                line_height,
                 color,
                 font,
                 horizontal_alignment,
                 vertical_alignment,
+                shaping,
             } => {
                 let layer = &mut layers[current_layer];
 
@@ -130,10 +135,12 @@ impl<'a> Layer<'a> {
                     content,
                     bounds: *bounds + translation,
                     size: *size,
+                    line_height: *line_height,
                     color: *color,
                     font: *font,
                     horizontal_alignment: *horizontal_alignment,
                     vertical_alignment: *vertical_alignment,
+                    shaping: *shaping,
                 });
             }
             Primitive::Quad {
@@ -145,20 +152,18 @@ impl<'a> Layer<'a> {
             } => {
                 let layer = &mut layers[current_layer];
 
-                // TODO: Move some of these computations to the GPU (?)
-                layer.quads.push(Quad {
+                let quad = Quad {
                     position: [
                         bounds.x + translation.x,
                         bounds.y + translation.y,
                     ],
                     size: [bounds.width, bounds.height],
-                    color: match background {
-                        Background::Color(color) => color.into_linear(),
-                    },
+                    border_color: color::pack(*border_color),
                     border_radius: *border_radius,
                     border_width: *border_width,
-                    border_color: border_color.into_linear(),
-                });
+                };
+
+                layer.quads.add(quad, background);
             }
             Primitive::Image { handle, bounds } => {
                 let layer = &mut layers[current_layer];
@@ -198,11 +203,7 @@ impl<'a> Layer<'a> {
                     });
                 }
             }
-            Primitive::GradientMesh {
-                buffers,
-                size,
-                gradient,
-            } => {
+            Primitive::GradientMesh { buffers, size } => {
                 let layer = &mut layers[current_layer];
 
                 let bounds = Rectangle::new(
@@ -216,7 +217,6 @@ impl<'a> Layer<'a> {
                         origin: Point::new(translation.x, translation.y),
                         buffers,
                         clip_bounds,
-                        gradient,
                     });
                 }
             }
@@ -283,7 +283,11 @@ impl<'a> Layer<'a> {
                 }
             }
             _ => {
-                // Unsupported!
+                // Not supported!
+                log::warn!(
+                    "Unsupported primitive in `iced_wgpu`: {:?}",
+                    primitive
+                );
             }
         }
     }

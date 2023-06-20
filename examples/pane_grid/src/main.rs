@@ -108,8 +108,9 @@ impl Application for Example {
             Message::Dragged(pane_grid::DragEvent::Dropped {
                 pane,
                 target,
+                region,
             }) => {
-                self.panes.swap(&pane, &target);
+                self.panes.split_with(&target, &pane, region);
             }
             Message::Dragged(_) => {}
             Message::TogglePin(pane) => {
@@ -255,6 +256,7 @@ fn handle_hotkey(key_code: keyboard::KeyCode) -> Option<Message> {
     }
 }
 
+#[derive(Clone, Copy)]
 struct Pane {
     id: usize,
     pub is_pinned: bool,
@@ -298,7 +300,7 @@ fn view_content<'a>(
         )
     ]
     .spacing(5)
-    .max_width(150);
+    .max_width(160);
 
     if total_panes > 1 && !is_pinned {
         controls = controls.push(

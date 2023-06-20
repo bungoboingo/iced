@@ -1,8 +1,12 @@
-use iced_core::alignment;
-use iced_core::image;
-use iced_core::svg;
-use iced_core::{Background, Color, Font, Gradient, Rectangle, Size, Vector};
 use std::fmt::{Debug, Formatter};
+//! Draw using different graphical primitives.
+use crate::color;
+use crate::core::alignment;
+use crate::core::image;
+use crate::core::svg;
+use crate::core::text;
+use crate::core::{Background, Color, Font, Rectangle, Size, Vector};
+use crate::gradient;
 
 use crate::custom::Program;
 use bytemuck::{Pod, Zeroable};
@@ -21,14 +25,18 @@ pub enum Primitive {
         bounds: Rectangle,
         /// The color of the text
         color: Color,
-        /// The size of the text
+        /// The size of the text in logical pixels
         size: f32,
+        /// The line height of the text
+        line_height: text::LineHeight,
         /// The font of the text
         font: Font,
         /// The horizontal alignment of the text
         horizontal_alignment: alignment::Horizontal,
         /// The vertical alignment of the text
         vertical_alignment: alignment::Vertical,
+        /// The shaping strategy of the text.
+        shaping: text::Shaping,
     },
     /// A quad primitive
     Quad {
@@ -36,7 +44,7 @@ pub enum Primitive {
         bounds: Rectangle,
         /// The background of the quad
         background: Background,
-        /// The border radius of the quad
+        /// The border radii of the quad
         border_radius: [f32; 4],
         /// The border width of the quad
         border_width: f32,
@@ -78,28 +86,35 @@ pub enum Primitive {
     /// It can be used to render many kinds of geometry freely.
     GradientMesh {
         /// The vertices and indices of the mesh.
-        buffers: Mesh2D<Vertex2D>,
+        buffers: Mesh2D<GradientVertex2D>,
 
         /// The size of the drawable region of the mesh.
         ///
         /// Any geometry that falls out of this region will be clipped.
         size: Size,
-
-        /// The [`Gradient`] to apply to the mesh.
-        gradient: Gradient,
     },
+    /// A [`tiny_skia`] path filled with some paint.
     #[cfg(feature = "tiny-skia")]
     Fill {
+        /// The path to fill.
         path: tiny_skia::Path,
+        /// The paint to use.
         paint: tiny_skia::Paint<'static>,
+        /// The fill rule to follow.
         rule: tiny_skia::FillRule,
+        /// The transform to apply to the path.
         transform: tiny_skia::Transform,
     },
+    /// A [`tiny_skia`] path stroked with some paint.
     #[cfg(feature = "tiny-skia")]
     Stroke {
+        /// The path to stroke.
         path: tiny_skia::Path,
+        /// The paint to use.
         paint: tiny_skia::Paint<'static>,
+        /// The stroke settings.
         stroke: tiny_skia::Stroke,
+        /// The transform to apply to the path.
         transform: tiny_skia::Transform,
     },
     /// A group of primitives
@@ -144,10 +159,12 @@ impl Debug for CustomPipeline {
 }
 
 impl Primitive {
+    /// Creates a [`Primitive::Group`].
     pub fn group(primitives: Vec<Self>) -> Self {
         Self::Group { primitives }
     }
 
+    /// Creates a [`Primitive::Clip`].
     pub fn clip(self, bounds: Rectangle) -> Self {
         Self::Clip {
             bounds,
@@ -155,6 +172,7 @@ impl Primitive {
         }
     }
 
+    /// Creates a [`Primitive::Translate`].
     pub fn translate(self, translation: Vector) -> Self {
         Self::Translate {
             translation,
@@ -162,6 +180,7 @@ impl Primitive {
         }
     }
 
+    /// Returns the bounds of the [`Primitive`].
     pub fn bounds(&self) -> Rectangle {
         match self {
             Self::Text {
@@ -237,14 +256,6 @@ pub struct Mesh2D<T> {
     pub indices: Vec<u32>,
 }
 
-/// A two-dimensional vertex.
-#[derive(Copy, Clone, Debug, PartialEq, Zeroable, Pod)]
-#[repr(C)]
-pub struct Vertex2D {
-    /// The vertex position in 2D space.
-    pub position: [f32; 2],
-}
-
 /// A two-dimensional vertex with a color.
 #[derive(Copy, Clone, Debug, PartialEq, Zeroable, Pod)]
 #[repr(C)]
@@ -253,8 +264,25 @@ pub struct ColoredVertex2D {
     pub position: [f32; 2],
 
     /// The color of the vertex in __linear__ RGBA.
-    pub color: [f32; 4],
+    pub color: color::Packed,
 }
+
+/// A vertex which contains 2D position & packed gradient data.
+#[derive(Copy, Clone, Debug, PartialEq)]
+#[repr(C)]
+pub struct GradientVertex2D {
+    /// The vertex position in 2D space.
+    pub position: [f32; 2],
+
+    /// The packed vertex data of the gradient.
+    pub gradient: gradient::Packed,
+}
+
+#[allow(unsafe_code)]
+unsafe impl Zeroable for GradientVertex2D {}
+
+#[allow(unsafe_code)]
+unsafe impl Pod for GradientVertex2D {}
 
 impl From<()> for Primitive {
     fn from(_: ()) -> Self {

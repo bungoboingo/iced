@@ -9,6 +9,7 @@ use crate::core::{
     self, Clipboard, Element, Length, Point, Rectangle, Shell, Size, Widget,
 };
 use crate::horizontal_space;
+use crate::runtime::overlay::Nested;
 
 use ouroboros::self_referencing;
 use std::cell::{RefCell, RefMut};
@@ -42,7 +43,7 @@ where
             view: Box::new(view),
             content: RefCell::new(Content {
                 size: Size::ZERO,
-                layout: layout::Node::new(Size::ZERO),
+                layout: None,
                 element: Element::new(horizontal_space(0)),
             }),
         }
@@ -51,7 +52,7 @@ where
 
 struct Content<'a, Message, Renderer> {
     size: Size,
-    layout: layout::Node,
+    layout: Option<layout::Node>,
     element: Element<'a, Message, Renderer>,
 }
 
@@ -59,10 +60,19 @@ impl<'a, Message, Renderer> Content<'a, Message, Renderer>
 where
     Renderer: core::Renderer,
 {
+    fn layout(&mut self, renderer: &Renderer) {
+        if self.layout.is_none() {
+            self.layout =
+                Some(self.element.as_widget().layout(
+                    renderer,
+                    &layout::Limits::new(Size::ZERO, self.size),
+                ));
+        }
+    }
+
     fn update(
         &mut self,
         tree: &mut Tree,
-        renderer: &Renderer,
         new_size: Size,
         view: &dyn Fn(Size) -> Element<'a, Message, Renderer>,
     ) {
@@ -72,13 +82,9 @@ where
 
         self.element = view(new_size);
         self.size = new_size;
+        self.layout = None;
 
         tree.diff(&self.element);
-
-        self.layout = self
-            .element
-            .as_widget()
-            .layout(renderer, &layout::Limits::new(Size::ZERO, self.size));
     }
 
     fn resolve<R, T>(
@@ -97,11 +103,12 @@ where
     where
         R: Deref<Target = Renderer>,
     {
-        self.update(tree, renderer.deref(), layout.bounds().size(), view);
+        self.update(tree, layout.bounds().size(), view);
+        self.layout(renderer.deref());
 
         let content_layout = Layout::with_offset(
             layout.position() - Point::ORIGIN,
-            &self.layout,
+            self.layout.as_ref().unwrap(),
         );
 
         f(tree, renderer, content_layout, &mut self.element)
@@ -171,7 +178,7 @@ where
         tree: &mut Tree,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
@@ -179,7 +186,10 @@ where
         let state = tree.state.downcast_mut::<State>();
         let mut content = self.content.borrow_mut();
 
-        content.resolve(
+        let mut local_messages = vec![];
+        let mut local_shell = Shell::new(&mut local_messages);
+
+        let status = content.resolve(
             &mut state.tree.borrow_mut(),
             renderer,
             layout,
@@ -189,13 +199,21 @@ where
                     tree,
                     event,
                     layout,
-                    cursor_position,
+                    cursor,
                     renderer,
                     clipboard,
-                    shell,
+                    &mut local_shell,
                 )
             },
-        )
+        );
+
+        if local_shell.is_layout_invalid() {
+            content.layout = None;
+        }
+
+        shell.merge(local_shell, std::convert::identity);
+
+        status
     }
 
     fn draw(
@@ -205,7 +223,7 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
     ) {
         let state = tree.state.downcast_ref::<State>();
@@ -218,13 +236,7 @@ where
             &self.view,
             |tree, renderer, layout, element| {
                 element.as_widget().draw(
-                    tree,
-                    renderer,
-                    theme,
-                    style,
-                    layout,
-                    cursor_position,
-                    viewport,
+                    tree, renderer, theme, style, layout, cursor, viewport,
                 )
             },
         )
@@ -234,7 +246,7 @@ where
         &self,
         tree: &Tree,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
@@ -247,13 +259,9 @@ where
             layout,
             &self.view,
             |tree, renderer, layout, element| {
-                element.as_widget().mouse_interaction(
-                    tree,
-                    layout,
-                    cursor_position,
-                    viewport,
-                    renderer,
-                )
+                element
+                    .as_widget()
+                    .mouse_interaction(tree, layout, cursor, viewport, renderer)
             },
         )
     }
@@ -274,34 +282,30 @@ where
             types: PhantomData,
             overlay_builder: |content: &mut RefMut<'_, Content<'_, _, _>>,
                               tree| {
-                content.update(
-                    tree,
-                    renderer,
-                    layout.bounds().size(),
-                    &self.view,
-                );
+                content.update(tree, layout.bounds().size(), &self.view);
+                content.layout(renderer);
 
                 let Content {
                     element,
-                    layout: content_layout,
+                    layout: content_layout_node,
                     ..
                 } = content.deref_mut();
 
                 let content_layout = Layout::with_offset(
                     layout.bounds().position() - Point::ORIGIN,
-                    content_layout,
+                    content_layout_node.as_ref().unwrap(),
                 );
 
                 element
                     .as_widget_mut()
                     .overlay(tree, content_layout, renderer)
+                    .map(|overlay| RefCell::new(Nested::new(overlay)))
             },
         }
         .build();
 
-        let has_overlay = overlay.with_overlay(|overlay| {
-            overlay.as_ref().map(overlay::Element::position)
-        });
+        let has_overlay =
+            overlay.with_overlay_maybe(|overlay| overlay.position());
 
         has_overlay
             .map(|position| overlay::Element::new(position, Box::new(overlay)))
@@ -326,23 +330,27 @@ struct Overlay<'a, 'b, Message, Renderer> {
     types: PhantomData<Message>,
 
     #[borrows(mut content, mut tree)]
-    #[covariant]
-    overlay: Option<overlay::Element<'this, Message, Renderer>>,
+    #[not_covariant]
+    overlay: Option<RefCell<Nested<'this, Message, Renderer>>>,
 }
 
 impl<'a, 'b, Message, Renderer> Overlay<'a, 'b, Message, Renderer> {
     fn with_overlay_maybe<T>(
         &self,
-        f: impl FnOnce(&overlay::Element<'_, Message, Renderer>) -> T,
+        f: impl FnOnce(&mut Nested<'_, Message, Renderer>) -> T,
     ) -> Option<T> {
-        self.borrow_overlay().as_ref().map(f)
+        self.with_overlay(|overlay| {
+            overlay.as_ref().map(|nested| (f)(&mut nested.borrow_mut()))
+        })
     }
 
     fn with_overlay_mut_maybe<T>(
         &mut self,
-        f: impl FnOnce(&mut overlay::Element<'_, Message, Renderer>) -> T,
+        f: impl FnOnce(&mut Nested<'_, Message, Renderer>) -> T,
     ) -> Option<T> {
-        self.with_overlay_mut(|overlay| overlay.as_mut().map(f))
+        self.with_overlay_mut(|overlay| {
+            overlay.as_mut().map(|nested| (f)(nested.get_mut()))
+        })
     }
 }
 
@@ -358,9 +366,7 @@ where
         position: Point,
     ) -> layout::Node {
         self.with_overlay_maybe(|overlay| {
-            let translation = position - overlay.position();
-
-            overlay.layout(renderer, bounds, translation)
+            overlay.layout(renderer, bounds, position)
         })
         .unwrap_or_default()
     }
@@ -371,27 +377,22 @@ where
         theme: &Renderer::Theme,
         style: &renderer::Style,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
     ) {
         let _ = self.with_overlay_maybe(|overlay| {
-            overlay.draw(renderer, theme, style, layout, cursor_position);
+            overlay.draw(renderer, theme, style, layout, cursor);
         });
     }
 
     fn mouse_interaction(
         &self,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         viewport: &Rectangle,
         renderer: &Renderer,
     ) -> mouse::Interaction {
         self.with_overlay_maybe(|overlay| {
-            overlay.mouse_interaction(
-                layout,
-                cursor_position,
-                viewport,
-                renderer,
-            )
+            overlay.mouse_interaction(layout, cursor, viewport, renderer)
         })
         .unwrap_or_default()
     }
@@ -400,27 +401,25 @@ where
         &mut self,
         event: Event,
         layout: Layout<'_>,
-        cursor_position: Point,
+        cursor: mouse::Cursor,
         renderer: &Renderer,
         clipboard: &mut dyn Clipboard,
         shell: &mut Shell<'_, Message>,
     ) -> event::Status {
         self.with_overlay_mut_maybe(|overlay| {
-            overlay.on_event(
-                event,
-                layout,
-                cursor_position,
-                renderer,
-                clipboard,
-                shell,
-            )
+            overlay.on_event(event, layout, cursor, renderer, clipboard, shell)
         })
         .unwrap_or(event::Status::Ignored)
     }
 
-    fn is_over(&self, layout: Layout<'_>, cursor_position: Point) -> bool {
+    fn is_over(
+        &self,
+        layout: Layout<'_>,
+        renderer: &Renderer,
+        cursor_position: Point,
+    ) -> bool {
         self.with_overlay_maybe(|overlay| {
-            overlay.is_over(layout, cursor_position)
+            overlay.is_over(layout, renderer, cursor_position)
         })
         .unwrap_or_default()
     }
