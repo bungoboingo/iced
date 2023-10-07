@@ -46,7 +46,7 @@ where
             id: None,
             width: Length::Shrink,
             height: Length::Shrink,
-            direction: Default::default(),
+            direction: Direction::default(),
             content: content.into(),
             on_scroll: None,
             style: Default::default(),
@@ -117,7 +117,7 @@ impl Direction {
         match self {
             Self::Horizontal(properties) => Some(properties),
             Self::Both { horizontal, .. } => Some(horizontal),
-            _ => None,
+            Self::Vertical(_) => None,
         }
     }
 
@@ -126,7 +126,7 @@ impl Direction {
         match self {
             Self::Vertical(properties) => Some(properties),
             Self::Both { vertical, .. } => Some(vertical),
-            _ => None,
+            Self::Horizontal(_) => None,
         }
     }
 }
@@ -217,7 +217,7 @@ where
     }
 
     fn diff(&self, tree: &mut Tree) {
-        tree.diff_children(std::slice::from_ref(&self.content))
+        tree.diff_children(std::slice::from_ref(&self.content));
     }
 
     fn width(&self) -> Length {
@@ -230,6 +230,7 @@ where
 
     fn layout(
         &self,
+        tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
@@ -240,7 +241,11 @@ where
             self.height,
             &self.direction,
             |renderer, limits| {
-                self.content.as_widget().layout(renderer, limits)
+                self.content.as_widget().layout(
+                    &mut tree.children[0],
+                    renderer,
+                    limits,
+                )
             },
         )
     }
@@ -343,9 +348,9 @@ where
                     layout,
                     cursor,
                     viewport,
-                )
+                );
             },
-        )
+        );
     }
 
     fn mouse_interaction(
@@ -593,7 +598,7 @@ pub fn update<Message>(
             match event {
                 touch::Event::FingerPressed { .. } => {
                     let Some(cursor_position) = cursor.position() else {
-                        return event::Status::Ignored
+                        return event::Status::Ignored;
                     };
 
                     state.scroll_area_touched_at = Some(cursor_position);
@@ -603,7 +608,7 @@ pub fn update<Message>(
                         state.scroll_area_touched_at
                     {
                         let Some(cursor_position) = cursor.position() else {
-                            return event::Status::Ignored
+                            return event::Status::Ignored;
                         };
 
                         let delta = Vector::new(
@@ -648,7 +653,7 @@ pub fn update<Message>(
             | Event::Touch(touch::Event::FingerMoved { .. }) => {
                 if let Some(scrollbar) = scrollbars.y {
                     let Some(cursor_position) = cursor.position() else {
-                        return event::Status::Ignored
+                        return event::Status::Ignored;
                     };
 
                     state.scroll_y_to(
@@ -678,7 +683,7 @@ pub fn update<Message>(
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 let Some(cursor_position) = cursor.position() else {
-                    return event::Status::Ignored
+                    return event::Status::Ignored;
                 };
 
                 if let (Some(scroller_grabbed_at), Some(scrollbar)) =
@@ -722,7 +727,7 @@ pub fn update<Message>(
             Event::Mouse(mouse::Event::CursorMoved { .. })
             | Event::Touch(touch::Event::FingerMoved { .. }) => {
                 let Some(cursor_position) = cursor.position() else {
-                    return event::Status::Ignored
+                    return event::Status::Ignored;
                 };
 
                 if let Some(scrollbar) = scrollbars.x {
@@ -753,7 +758,7 @@ pub fn update<Message>(
             Event::Mouse(mouse::Event::ButtonPressed(mouse::Button::Left))
             | Event::Touch(touch::Event::FingerPressed { .. }) => {
                 let Some(cursor_position) = cursor.position() else {
-                    return event::Status::Ignored
+                    return event::Status::Ignored;
                 };
 
                 if let (Some(scroller_grabbed_at), Some(scrollbar)) =
@@ -1064,7 +1069,7 @@ impl operation::Scrollable for State {
     }
 
     fn scroll_to(&mut self, offset: AbsoluteOffset) {
-        State::scroll_to(self, offset)
+        State::scroll_to(self, offset);
     }
 }
 
@@ -1146,6 +1151,16 @@ impl Viewport {
 
         RelativeOffset { x, y }
     }
+
+    /// Returns the bounds of the current [`Viewport`].
+    pub fn bounds(&self) -> Rectangle {
+        self.bounds
+    }
+
+    /// Returns the content bounds of the current [`Viewport`].
+    pub fn content_bounds(&self) -> Rectangle {
+        self.content_bounds
+    }
 }
 
 impl State {
@@ -1188,7 +1203,7 @@ impl State {
                 (self.offset_y.absolute(bounds.height, content_bounds.height)
                     - delta.y)
                     .clamp(0.0, content_bounds.height - bounds.height),
-            )
+            );
         }
 
         if bounds.width < content_bounds.width {
@@ -1349,15 +1364,15 @@ impl Scrollbars {
 
             let ratio = bounds.height / content_bounds.height;
             // min height for easier grabbing with super tall content
-            let scroller_height = (bounds.height * ratio).max(2.0);
-            let scroller_offset = translation.y * ratio;
+            let scroller_height = (scrollbar_bounds.height * ratio).max(2.0);
+            let scroller_offset =
+                translation.y * ratio * scrollbar_bounds.height / bounds.height;
 
             let scroller_bounds = Rectangle {
                 x: bounds.x + bounds.width
                     - total_scrollbar_width / 2.0
                     - scroller_width / 2.0,
-                y: (scrollbar_bounds.y + scroller_offset - x_scrollbar_height)
-                    .max(0.0),
+                y: (scrollbar_bounds.y + scroller_offset).max(0.0),
                 width: scroller_width,
                 height: scroller_height,
             };
@@ -1384,8 +1399,8 @@ impl Scrollbars {
 
             // Need to adjust the width of the horizontal scrollbar if the vertical scrollbar
             // is present
-            let scrollbar_y_width = show_scrollbar_y
-                .map_or(0.0, |v| v.width.max(v.scroller_width) + v.margin);
+            let scrollbar_y_width = y_scrollbar
+                .map_or(0.0, |scrollbar| scrollbar.total_bounds.width);
 
             let total_scrollbar_height =
                 width.max(scroller_width) + 2.0 * margin;
@@ -1410,12 +1425,12 @@ impl Scrollbars {
 
             let ratio = bounds.width / content_bounds.width;
             // min width for easier grabbing with extra wide content
-            let scroller_length = (bounds.width * ratio).max(2.0);
-            let scroller_offset = translation.x * ratio;
+            let scroller_length = (scrollbar_bounds.width * ratio).max(2.0);
+            let scroller_offset =
+                translation.x * ratio * scrollbar_bounds.width / bounds.width;
 
             let scroller_bounds = Rectangle {
-                x: (scrollbar_bounds.x + scroller_offset - scrollbar_y_width)
-                    .max(0.0),
+                x: (scrollbar_bounds.x + scroller_offset).max(0.0),
                 y: bounds.y + bounds.height
                     - total_scrollbar_height / 2.0
                     - scroller_width / 2.0,

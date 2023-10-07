@@ -95,8 +95,11 @@ where
         let Cache { mut state } = cache;
         state.diff(root.as_widget());
 
-        let base =
-            renderer.layout(&root, &layout::Limits::new(Size::ZERO, bounds));
+        let base = root.as_widget().layout(
+            &mut state,
+            renderer,
+            &layout::Limits::new(Size::ZERO, bounds),
+        );
 
         UserInterface {
             root,
@@ -226,8 +229,9 @@ where
                 if shell.is_layout_invalid() {
                     let _ = ManuallyDrop::into_inner(manual_overlay);
 
-                    self.base = renderer.layout(
-                        &self.root,
+                    self.base = self.root.as_widget().layout(
+                        &mut self.state,
+                        renderer,
                         &layout::Limits::new(Size::ZERO, self.bounds),
                     );
 
@@ -291,7 +295,7 @@ where
         let event_statuses = events
             .iter()
             .cloned()
-            .zip(overlay_statuses.into_iter())
+            .zip(overlay_statuses)
             .map(|(event, overlay_status)| {
                 if matches!(overlay_status, event::Status::Captured) {
                     return overlay_status;
@@ -325,8 +329,9 @@ where
                 }
 
                 shell.revalidate_layout(|| {
-                    self.base = renderer.layout(
-                        &self.root,
+                    self.base = self.root.as_widget().layout(
+                        &mut self.state,
+                        renderer,
                         &layout::Limits::new(Size::ZERO, self.bounds),
                     );
 
@@ -356,7 +361,7 @@ where
     /// It returns the current [`mouse::Interaction`]. You should update the
     /// icon of the mouse cursor accordingly in your system.
     ///
-    /// [`Renderer`]: crate::Renderer
+    /// [`Renderer`]: crate::core::Renderer
     ///
     /// # Example
     /// We can finally draw our [counter](index.html#usage) by
@@ -619,7 +624,7 @@ pub enum State {
     /// The [`UserInterface`] is up-to-date and can be reused without
     /// rebuilding.
     Updated {
-        /// The [`Instant`] when a redraw should be performed.
+        /// The [`window::RedrawRequest`] when a redraw should be performed.
         redraw_request: Option<window::RedrawRequest>,
     },
 }

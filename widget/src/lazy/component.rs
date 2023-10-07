@@ -254,11 +254,18 @@ where
 
     fn layout(
         &self,
+        tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
+        let t = tree.state.downcast_mut::<Rc<RefCell<Option<Tree>>>>();
+
         self.with_element(|element| {
-            element.as_widget().layout(renderer, limits)
+            element.as_widget().layout(
+                &mut t.borrow_mut().as_mut().unwrap().children[0],
+                renderer,
+                limits,
+            )
         })
     }
 
@@ -504,7 +511,7 @@ impl<'a, 'b, Message, Renderer, Event, S> Drop
     for Overlay<'a, 'b, Message, Renderer, Event, S>
 {
     fn drop(&mut self) {
-        if let Some(heads) = self.0.take().map(|inner| inner.into_heads()) {
+        if let Some(heads) = self.0.take().map(Inner::into_heads) {
             *heads.instance.tree.borrow_mut().borrow_mut() = Some(heads.tree);
         }
     }
@@ -566,7 +573,7 @@ where
     S: 'static + Default,
 {
     fn layout(
-        &self,
+        &mut self,
         renderer: &Renderer,
         bounds: Size,
         position: Point,

@@ -1,8 +1,7 @@
 //! Use the built-in theme and styles.
 pub mod palette;
 
-use self::palette::Extended;
-pub use self::palette::Palette;
+pub use palette::Palette;
 
 use crate::application;
 use crate::button;
@@ -40,7 +39,16 @@ pub enum Theme {
 impl Theme {
     /// Creates a new custom [`Theme`] from the given [`Palette`].
     pub fn custom(palette: Palette) -> Self {
-        Self::Custom(Box::new(Custom::new(palette)))
+        Self::custom_with_fn(palette, palette::Extended::generate)
+    }
+
+    /// Creates a new custom [`Theme`] from the given [`Palette`], with
+    /// a custom generator of a [`palette::Extended`].
+    pub fn custom_with_fn(
+        palette: Palette,
+        generate: impl FnOnce(Palette) -> palette::Extended,
+    ) -> Self {
+        Self::Custom(Box::new(Custom::with_fn(palette, generate)))
     }
 
     /// Returns the [`Palette`] of the [`Theme`].
@@ -66,15 +74,24 @@ impl Theme {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct Custom {
     palette: Palette,
-    extended: Extended,
+    extended: palette::Extended,
 }
 
 impl Custom {
     /// Creates a [`Custom`] theme from the given [`Palette`].
     pub fn new(palette: Palette) -> Self {
+        Self::with_fn(palette, palette::Extended::generate)
+    }
+
+    /// Creates a [`Custom`] theme from the given [`Palette`] with
+    /// a custom generator of a [`palette::Extended`].
+    pub fn with_fn(
+        palette: Palette,
+        generate: impl FnOnce(Palette) -> palette::Extended,
+    ) -> Self {
         Self {
             palette,
-            extended: Extended::generate(palette),
+            extended: generate(palette),
         }
     }
 }
@@ -376,7 +393,7 @@ impl container::StyleSheet for Theme {
 
     fn appearance(&self, style: &Self::Style) -> container::Appearance {
         match style {
-            Container::Transparent => Default::default(),
+            Container::Transparent => container::Appearance::default(),
             Container::Box => {
                 let palette = self.extended_palette();
 
@@ -887,7 +904,7 @@ impl svg::StyleSheet for Theme {
 
     fn appearance(&self, style: &Self::Style) -> svg::Appearance {
         match style {
-            Svg::Default => Default::default(),
+            Svg::Default => svg::Appearance::default(),
             Svg::Custom(custom) => custom.appearance(self),
         }
     }
@@ -1036,7 +1053,7 @@ impl text::StyleSheet for Theme {
 
     fn appearance(&self, style: Self::Style) -> text::Appearance {
         match style {
-            Text::Default => Default::default(),
+            Text::Default => text::Appearance::default(),
             Text::Color(c) => text::Appearance { color: Some(c) },
         }
     }

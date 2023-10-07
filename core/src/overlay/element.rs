@@ -54,7 +54,7 @@ where
 
     /// Computes the layout of the [`Element`] in the given bounds.
     pub fn layout(
-        &self,
+        &mut self,
         renderer: &Renderer,
         bounds: Size,
         translation: Vector,
@@ -98,7 +98,7 @@ where
         layout: Layout<'_>,
         cursor: mouse::Cursor,
     ) {
-        self.overlay.draw(renderer, theme, style, layout, cursor)
+        self.overlay.draw(renderer, theme, style, layout, cursor);
     }
 
     /// Applies a [`widget::Operation`] to the [`Element`].
@@ -150,7 +150,7 @@ where
     Renderer: crate::Renderer,
 {
     fn layout(
-        &self,
+        &mut self,
         renderer: &Renderer,
         bounds: Size,
         position: Point,
@@ -205,7 +205,7 @@ where
                 state: &mut dyn widget::operation::TextInput,
                 id: Option<&widget::Id>,
             ) {
-                self.operation.text_input(state, id)
+                self.operation.text_input(state, id);
             }
 
             fn custom(&mut self, state: &mut dyn Any, id: Option<&widget::Id>) {
@@ -262,7 +262,7 @@ where
         layout: Layout<'_>,
         cursor: mouse::Cursor,
     ) {
-        self.content.draw(renderer, theme, style, layout, cursor)
+        self.content.draw(renderer, theme, style, layout, cursor);
     }
 
     fn is_over(

@@ -293,7 +293,7 @@ where
     }
 
     fn diff(&self, tree: &mut Tree) {
-        self.widget.diff(tree)
+        self.widget.diff(tree);
     }
 
     fn width(&self) -> Length {
@@ -306,10 +306,11 @@ where
 
     fn layout(
         &self,
+        tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        self.widget.layout(renderer, limits)
+        self.widget.layout(tree, renderer, limits)
     }
 
     fn operate(
@@ -417,7 +418,7 @@ where
         viewport: &Rectangle,
     ) {
         self.widget
-            .draw(tree, renderer, theme, style, layout, cursor, viewport)
+            .draw(tree, renderer, theme, style, layout, cursor, viewport);
     }
 
     fn mouse_interaction(
@@ -491,10 +492,11 @@ where
 
     fn layout(
         &self,
+        tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
-        self.element.widget.layout(renderer, limits)
+        self.element.widget.layout(tree, renderer, limits)
     }
 
     fn operate(
@@ -506,7 +508,7 @@ where
     ) {
         self.element
             .widget
-            .operate(state, layout, renderer, operation)
+            .operate(state, layout, renderer, operation);
     }
 
     fn on_event(

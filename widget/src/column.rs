@@ -122,6 +122,7 @@ where
 
     fn layout(
         &self,
+        tree: &mut Tree,
         renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
@@ -138,6 +139,7 @@ where
             self.spacing,
             self.align_items,
             &self.children,
+            &mut tree.children,
         )
     }
 
@@ -157,7 +159,7 @@ where
                     child
                         .as_widget()
                         .operate(state, layout, renderer, operation);
-                })
+                });
         });
     }
 

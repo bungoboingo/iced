@@ -166,6 +166,7 @@ where
 
     fn layout(
         &self,
+        _tree: &mut Tree,
         _renderer: &Renderer,
         limits: &layout::Limits,
     ) -> layout::Node {
@@ -219,7 +220,7 @@ where
             &self.range,
             theme,
             &self.style,
-        )
+        );
     }
 
     fn mouse_interaction(

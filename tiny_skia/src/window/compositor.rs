@@ -28,9 +28,16 @@ impl<Theme> crate::graphics::Compositor for Compositor<Theme> {
         settings: Self::Settings,
         _compatible_window: Option<&W>,
     ) -> Result<(Self, Self::Renderer), Error> {
-        let (compositor, backend) = new(settings);
+        let (compositor, backend) = new();
 
-        Ok((compositor, Renderer::new(backend)))
+        Ok((
+            compositor,
+            Renderer::new(
+                backend,
+                settings.default_font,
+                settings.default_text_size,
+            ),
+        ))
     }
 
     fn create_surface<W: HasRawWindowHandle + HasRawDisplayHandle>(
@@ -39,6 +46,7 @@ impl<Theme> crate::graphics::Compositor for Compositor<Theme> {
         width: u32,
         height: u32,
     ) -> Surface {
+        #[allow(unsafe_code)]
         let window =
             unsafe { softbuffer::GraphicsContext::new(window, window) }
                 .expect("Create softbuffer for window");
@@ -113,12 +121,12 @@ impl<Theme> crate::graphics::Compositor for Compositor<Theme> {
     }
 }
 
-pub fn new<Theme>(settings: Settings) -> (Compositor<Theme>, Backend) {
+pub fn new<Theme>() -> (Compositor<Theme>, Backend) {
     (
         Compositor {
             _theme: PhantomData,
         },
-        Backend::new(settings),
+        Backend::new(),
     )
 }
 

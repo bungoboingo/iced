@@ -1,3 +1,6 @@
+#![forbid(rust_2018_idioms)]
+#![deny(unsafe_code, unused_results, rustdoc::broken_intra_doc_links)]
+#![cfg_attr(docsrs, feature(doc_auto_cfg))]
 pub mod compositor;
 
 #[cfg(feature = "geometry")]
@@ -16,7 +19,10 @@ pub use geometry::Geometry;
 
 use crate::core::renderer;
 use crate::core::text::{self, Text};
-use crate::core::{Background, Font, Point, Rectangle, Size, Vector};
+use crate::core::{
+    Background, Color, Font, Pixels, Point, Rectangle, Size, Vector,
+};
+use crate::graphics::text::Paragraph;
 use crate::graphics::Mesh;
 
 use std::borrow::Cow;
@@ -44,7 +50,7 @@ impl<T> Renderer<T> {
     pub fn draw_mesh(&mut self, mesh: Mesh) {
         match self {
             Self::TinySkia(_) => {
-                log::warn!("Unsupported mesh primitive: {:?}", mesh)
+                log::warn!("Unsupported mesh primitive: {mesh:?}");
             }
             #[cfg(feature = "wgpu")]
             Self::Wgpu(renderer) => {
@@ -142,6 +148,7 @@ impl<T> core::Renderer for Renderer<T> {
 
 impl<T> text::Renderer for Renderer<T> {
     type Font = Font;
+    type Paragraph = Paragraph;
 
     const ICON_FONT: Font = iced_tiny_skia::Renderer::<T>::ICON_FONT;
     const CHECKMARK_ICON: char = iced_tiny_skia::Renderer::<T>::CHECKMARK_ICON;
@@ -152,59 +159,50 @@ impl<T> text::Renderer for Renderer<T> {
         delegate!(self, renderer, renderer.default_font())
     }
 
-    fn default_size(&self) -> f32 {
+    fn default_size(&self) -> Pixels {
         delegate!(self, renderer, renderer.default_size())
     }
 
-    fn measure(
-        &self,
-        content: &str,
-        size: f32,
-        line_height: text::LineHeight,
-        font: Font,
-        bounds: Size,
-        shaping: text::Shaping,
-    ) -> Size {
-        delegate!(
-            self,
-            renderer,
-            renderer.measure(content, size, line_height, font, bounds, shaping)
-        )
+    fn create_paragraph(&self, text: Text<'_, Self::Font>) -> Self::Paragraph {
+        delegate!(self, renderer, renderer.create_paragraph(text))
     }
 
-    fn hit_test(
+    fn resize_paragraph(
         &self,
-        content: &str,
-        size: f32,
-        line_height: text::LineHeight,
-        font: Font,
-        bounds: Size,
-        shaping: text::Shaping,
-        point: Point,
-        nearest_only: bool,
-    ) -> Option<text::Hit> {
+        paragraph: &mut Self::Paragraph,
+        new_bounds: Size,
+    ) {
         delegate!(
             self,
             renderer,
-            renderer.hit_test(
-                content,
-                size,
-                line_height,
-                font,
-                bounds,
-                shaping,
-                point,
-                nearest_only
-            )
-        )
+            renderer.resize_paragraph(paragraph, new_bounds)
+        );
     }
 
     fn load_font(&mut self, bytes: Cow<'static, [u8]>) {
         delegate!(self, renderer, renderer.load_font(bytes));
     }
 
-    fn fill_text(&mut self, text: Text<'_, Self::Font>) {
-        delegate!(self, renderer, renderer.fill_text(text));
+    fn fill_paragraph(
+        &mut self,
+        text: &Self::Paragraph,
+        position: Point,
+        color: Color,
+    ) {
+        delegate!(
+            self,
+            renderer,
+            renderer.fill_paragraph(text, position, color)
+        );
+    }
+
+    fn fill_text(
+        &mut self,
+        text: Text<'_, Self::Font>,
+        position: Point,
+        color: Color,
+    ) {
+        delegate!(self, renderer, renderer.fill_text(text, position, color));
     }
 }
 
@@ -233,7 +231,7 @@ impl<T> crate::core::svg::Renderer for Renderer<T> {
         color: Option<crate::core::Color>,
         bounds: Rectangle,
     ) {
-        delegate!(self, renderer, renderer.draw(handle, color, bounds))
+        delegate!(self, renderer, renderer.draw(handle, color, bounds));
     }
 }
 
@@ -249,7 +247,7 @@ impl<T> crate::graphics::geometry::Renderer for Renderer<T> {
                         crate::Geometry::TinySkia(primitive) => {
                             renderer.draw_primitive(primitive);
                         }
-                        _ => unreachable!(),
+                        crate::Geometry::Wgpu(_) => unreachable!(),
                     }
                 }
             }
@@ -260,7 +258,7 @@ impl<T> crate::graphics::geometry::Renderer for Renderer<T> {
                         crate::Geometry::Wgpu(primitive) => {
                             renderer.draw_primitive(primitive);
                         }
-                        _ => unreachable!(),
+                        crate::Geometry::TinySkia(_) => unreachable!(),
                     }
                 }
             }
