@@ -252,6 +252,7 @@ impl Pipeline {
     ) {
         let renderer = &self.renderers[layer];
 
+        println!("Scissoring text to: {bounds:?}");
         render_pass.set_scissor_rect(
             bounds.x,
             bounds.y,
