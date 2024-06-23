@@ -103,7 +103,7 @@ where
         type Renderer = Renderer;
         type Executor = iced_futures::backend::default::Executor;
 
-        fn load(&self) -> Task<Self::Message> {
+        fn load(&self, _state: &Self::State) -> Task<Self::Message> {
             Task::none()
         }
 
@@ -326,7 +326,7 @@ impl<P: Program> Application<P> {
     /// Runs the [`Task`] produced by the closure at startup.
     pub fn load(
         self,
-        f: impl Fn() -> Task<P::Message>,
+        f: impl Fn(&P::State) -> Task<P::Message>,
     ) -> Application<
         impl Program<State = P::State, Message = P::Message, Theme = P::Theme>,
     > {

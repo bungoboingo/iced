@@ -18,7 +18,6 @@ fn main() -> iced::Result {
         .run()
 }
 
-#[derive(Default)]
 struct Example {
     screenshot: Option<Screenshot>,
     saved_png_path: Option<Result<String, PngError>>,
@@ -28,6 +27,23 @@ struct Example {
     y_input_value: Option<u32>,
     width_input_value: Option<u32>,
     height_input_value: Option<u32>,
+    input_id: text_input::Id,
+}
+
+impl Default for Example {
+    fn default() -> Self {
+        Self {
+            screenshot: None,
+            saved_png_path: None,
+            png_saving: false,
+            crop_error: None,
+            x_input_value: None,
+            y_input_value: None,
+            width_input_value: None,
+            height_input_value: None,
+            input_id: text_input::Id::unique(),
+        }
+    }
 }
 
 #[derive(Clone, Debug)]
@@ -130,11 +146,13 @@ impl Example {
             text("X:")
                 .vertical_alignment(alignment::Vertical::Center)
                 .width(30),
-            numeric_input("0", self.x_input_value).map(Message::XInputChanged),
+            numeric_input("0", self.x_input_value, Some(self.input_id.clone()))
+                .map(Message::XInputChanged),
             text("Y:")
                 .vertical_alignment(alignment::Vertical::Center)
                 .width(30),
-            numeric_input("0", self.y_input_value).map(Message::YInputChanged)
+            numeric_input("0", self.y_input_value, None)
+                .map(Message::YInputChanged)
         ]
         .spacing(10)
         .align_items(Alignment::Center);
@@ -143,12 +161,12 @@ impl Example {
             text("W:")
                 .vertical_alignment(alignment::Vertical::Center)
                 .width(30),
-            numeric_input("0", self.width_input_value)
+            numeric_input("0", self.width_input_value, None)
                 .map(Message::WidthInputChanged),
             text("H:")
                 .vertical_alignment(alignment::Vertical::Center)
                 .width(30),
-            numeric_input("0", self.height_input_value)
+            numeric_input("0", self.height_input_value, None)
                 .map(Message::HeightInputChanged)
         ]
         .spacing(10)
@@ -231,6 +249,10 @@ impl Example {
             }
         })
     }
+
+    fn load(&self) -> Task<Message> {
+        text_input::focus(self.input_id.clone())
+    }
 }
 
 async fn save_to_png(screenshot: Screenshot) -> Result<String, PngError> {
@@ -257,8 +279,9 @@ struct PngError(String);
 fn numeric_input(
     placeholder: &str,
     value: Option<u32>,
+    id: Option<text_input::Id>,
 ) -> Element<'_, Option<u32>> {
-    text_input(
+    let mut input = text_input(
         placeholder,
         &value.as_ref().map(ToString::to_string).unwrap_or_default(),
     )
@@ -271,8 +294,13 @@ fn numeric_input(
             value
         }
     })
-    .width(40)
-    .into()
+    .width(40);
+
+    if let Some(id) = id {
+        input = input.id(id);
+    }
+
+    input.into()
 }
 
 fn centered_text(content: &str) -> Element<'_, Message> {

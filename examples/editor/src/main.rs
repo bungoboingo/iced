@@ -51,7 +51,7 @@ impl Editor {
         }
     }
 
-    fn load() -> Task<Message> {
+    fn load(&self) -> Task<Message> {
         Task::perform(
             load_file(format!("{}/src/main.rs", env!("CARGO_MANIFEST_DIR"))),
             Message::FileOpened,

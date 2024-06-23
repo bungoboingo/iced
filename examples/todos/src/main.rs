@@ -39,6 +39,7 @@ struct State {
     tasks: Vec<Task>,
     dirty: bool,
     saving: bool,
+    id: text_input::Id,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +55,7 @@ enum Message {
 }
 
 impl Todos {
-    fn load() -> Command<Message> {
+    fn load(&self) -> Command<Message> {
         Command::perform(SavedState::load(), Message::Loaded)
     }
 

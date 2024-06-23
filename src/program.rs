@@ -27,7 +27,7 @@ pub trait Program: Sized {
     /// The executor of the program.
     type Executor: Executor;
 
-    fn load(&self) -> Task<Self::Message>;
+    fn load(&self, state: &Self::State) -> Task<Self::Message>;
 
     fn update(
         &self,
@@ -113,7 +113,7 @@ pub trait Program: Sized {
                 (program, initialize): Self::Flags,
             ) -> (Self, Task<Self::Message>) {
                 let state = initialize();
-                let command = program.load();
+                let command = program.load(&state);
 
                 (
                     Self {
@@ -212,8 +212,8 @@ pub fn with_title<P: Program>(
         type Renderer = P::Renderer;
         type Executor = P::Executor;
 
-        fn load(&self) -> Task<Self::Message> {
-            self.program.load()
+        fn load(&self, state: &Self::State) -> Task<Self::Message> {
+            self.program.load(state)
         }
 
         fn title(&self, state: &Self::State, window: window::Id) -> String {
@@ -269,7 +269,7 @@ pub fn with_title<P: Program>(
 
 pub fn with_load<P: Program>(
     program: P,
-    f: impl Fn() -> Task<P::Message>,
+    f: impl Fn(&P::State) -> Task<P::Message>,
 ) -> impl Program<State = P::State, Message = P::Message, Theme = P::Theme> {
     struct WithLoad<P, F> {
         program: P,
@@ -278,7 +278,7 @@ pub fn with_load<P: Program>(
 
     impl<P: Program, F> Program for WithLoad<P, F>
     where
-        F: Fn() -> Task<P::Message>,
+        F: Fn(&P::State) -> Task<P::Message>,
     {
         type State = P::State;
         type Message = P::Message;
@@ -286,8 +286,8 @@ pub fn with_load<P: Program>(
         type Renderer = P::Renderer;
         type Executor = P::Executor;
 
-        fn load(&self) -> Task<Self::Message> {
-            Task::batch([self.program.load(), (self.load)()])
+        fn load(&self, state: &Self::State) -> Task<Self::Message> {
+            Task::batch([(self.load)(state), self.program.load(state)])
         }
 
         fn update(
@@ -367,8 +367,8 @@ pub fn with_subscription<P: Program>(
             (self.subscription)(state)
         }
 
-        fn load(&self) -> Task<Self::Message> {
-            self.program.load()
+        fn load(&self, state: &Self::State) -> Task<Self::Message> {
+            self.program.load(state)
         }
 
         fn update(
@@ -445,8 +445,8 @@ pub fn with_theme<P: Program>(
             (self.theme)(state, window)
         }
 
-        fn load(&self) -> Task<Self::Message> {
-            self.program.load()
+        fn load(&self, state: &Self::State) -> Task<Self::Message> {
+            self.program.load(state)
         }
 
         fn title(&self, state: &Self::State, window: window::Id) -> String {
@@ -519,8 +519,8 @@ pub fn with_style<P: Program>(
             (self.style)(state, theme)
         }
 
-        fn load(&self) -> Task<Self::Message> {
-            self.program.load()
+        fn load(&self, state: &Self::State) -> Task<Self::Message> {
+            self.program.load(state)
         }
 
         fn title(&self, state: &Self::State, window: window::Id) -> String {
@@ -585,8 +585,8 @@ pub fn with_scale_factor<P: Program>(
         type Renderer = P::Renderer;
         type Executor = P::Executor;
 
-        fn load(&self) -> Task<Self::Message> {
-            self.program.load()
+        fn load(&self, state: &Self::State) -> Task<Self::Message> {
+            self.program.load(state)
         }
 
         fn title(&self, state: &Self::State, window: window::Id) -> String {

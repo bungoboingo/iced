@@ -30,7 +30,7 @@ enum Message {
 }
 
 impl WebSocket {
-    fn load() -> Task<Message> {
+    fn load(&self) -> Task<Message> {
         Task::batch([
             Task::perform(echo::server::run(), |_| Message::Server),
             widget::focus_next(),

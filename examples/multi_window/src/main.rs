@@ -9,7 +9,7 @@ use std::collections::BTreeMap;
 
 fn main() -> iced::Result {
     iced::daemon(Example::title, Example::update, Example::view)
-        .load(|| {
+        .load(|_| {
             window::open(window::Settings::default()).map(Message::WindowOpened)
         })
         .subscription(Example::subscription)
