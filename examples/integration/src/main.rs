@@ -285,18 +285,38 @@ pub fn main() -> Result<(), winit::error::EventLoopError> {
                                 ),
                             );
                         }
-                        Err(error) => match error {
-                            wgpu::SurfaceError::OutOfMemory => {
-                                panic!(
-                                    "Swapchain error: {error}. \
+                        Err(error) => {
+                            match error {
+                                wgpu::SurfaceError::OutOfMemory => {
+                                    panic!(
+                                        "Swapchain error: {error}. \
                                 Rendering cannot continue."
-                                )
+                                    )
+                                }
+                                wgpu::SurfaceError::Outdated
+                                | wgpu::SurfaceError::Lost => {
+                                    let size = window.inner_size();
+
+                                    surface.configure(
+                                        &device,
+                                        &wgpu::SurfaceConfiguration {
+                                            usage: wgpu::TextureUsages::RENDER_ATTACHMENT,
+                                            format: *format,
+                                            width: size.width,
+                                            height: size.height,
+                                            present_mode: wgpu::PresentMode::AutoVsync,
+                                            alpha_mode: wgpu::CompositeAlphaMode::Auto,
+                                            view_formats: vec![],
+                                            desired_maximum_frame_latency: 2,
+                                        },
+                                    );
+                                }
+                                wgpu::SurfaceError::Timeout => {}
                             }
-                            _ => {
-                                // Try rendering again next frame.
-                                window.request_redraw();
-                            }
-                        },
+
+                            // Try rendering again next frame.
+                            window.request_redraw();
+                        }
                     }
                 }
                 WindowEvent::CursorMoved { position, .. } => {

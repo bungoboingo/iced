@@ -914,27 +914,35 @@ async fn run_instance<P, C>(
                             Ok(()) => {
                                 debug.render_finished();
                             }
-                            Err(error) => match error {
-                                // This is an unrecoverable error.
-                                compositor::SurfaceError::OutOfMemory => {
-                                    panic!("{:?}", error);
-                                }
-                                _ => {
-                                    debug.render_finished();
+                            Err(error) => {
+                                log::error!(
+                                    "Error {error:?} when presenting surface."
+                                );
 
-                                    log::error!(
-                                        "Error {error:?} when \
-                                        presenting surface."
-                                    );
-
-                                    // Try rendering all windows again next frame.
-                                    for (_id, window) in
-                                        window_manager.iter_mut()
-                                    {
-                                        window.raw.request_redraw();
+                                match error {
+                                    // This is an unrecoverable error.
+                                    compositor::SurfaceError::OutOfMemory => {
+                                        panic!("{:?}", error);
                                     }
+                                    compositor::SurfaceError::Outdated
+                                    | compositor::SurfaceError::Lost => {
+                                        // Surface must be re-created
+                                        compositor.configure_surface(
+                                            &mut window.surface,
+                                            physical_size.width,
+                                            physical_size.height,
+                                        );
+                                    }
+                                    compositor::SurfaceError::Timeout => {}
                                 }
-                            },
+
+                                debug.render_finished();
+
+                                // Try rendering all windows again next frame.
+                                for (_id, window) in window_manager.iter_mut() {
+                                    window.raw.request_redraw();
+                                }
+                            }
                         }
                     }
                     event::Event::WindowEvent {
